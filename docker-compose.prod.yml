@@ -26,7 +26,7 @@ services:
       - "80:3000" # 외부 80포트(http) -> 내부 3000포트 연결
     env_file: .env
     environment:
-      - NEXT_PUBLIC_API_URL=http://<GCP_EXTERNAL_IP>:8000 # 나중에 IP 넣어야 함
+      - NEXT_PUBLIC_API_URL=http://34.64.50.56:8000 # 나중에 IP 넣어야 함
     depends_on:
       - backend
     networks:
