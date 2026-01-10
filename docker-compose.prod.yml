@@ -19,8 +19,8 @@ services:
   # 2. Frontend (Next.js)
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: prod_frontend
     ports:
       - "80:3000" # 외부 80포트(http) -> 내부 3000포트 연결
