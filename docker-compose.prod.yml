@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # 1. Backend Server (FastAPI)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: prod_backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file: .env  # 서버에 .env 파일 만들 예정
+    depends_on:
+      - neo4j
+    networks:
+      - app_network
+
+  # 2. Frontend (Next.js)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: prod_frontend
+    ports:
+      - "80:3000" # 외부 80포트(http) -> 내부 3000포트 연결
+    env_file: .env
+    environment:
+      - NEXT_PUBLIC_API_URL=http://<GCP_EXTERNAL_IP>:8000 # 나중에 IP 넣어야 함
+    depends_on:
+      - backend
+    networks:
+      - app_network
+
+  # 3. Ontology DB (Neo4j)
+  neo4j:
+    image: neo4j:latest
+    container_name: prod_neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/password1234 # 비번 변경 가능
+    volumes:
+      - ./neo4j_data:/data
+    networks:
+      - app_network
+
+  # 4. Scheduler (Batch Job)
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend # 백엔드와 같은 환경 사용
+    container_name: prod_scheduler
+    # 1분마다 실행되는 루프 스크립트 실행 (무한루프 버전)
+    command: sh -c "while true; do python scripts/run_batch.py; sleep 60; done"
+    env_file: .env
+    depends_on:
+      - backend
+      - neo4j
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge

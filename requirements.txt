@@ -2,7 +2,7 @@ fastapi
 uvicorn
 sqlalchemy
 psycopg2-binary
-pydantic
+pydantic[email]
 pydantic-settings
 python-jose[cryptography]
 passlib[bcrypt]
@@ -10,3 +10,8 @@ python-multipart
 requests
 neo4j
 redis
+python-dotenv
+beautifulsoup4
+google-generativeai
+google-genai
+openai

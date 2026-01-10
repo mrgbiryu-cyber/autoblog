@@ -1,10 +1,19 @@
 from datetime import datetime, timedelta
 from typing import Optional
-from jose import jwt
+from jose import JWTError, jwt
 from passlib.context import CryptContext
-from app.core.config import settings
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
+
+# 비밀번호 해싱 설정 (bcrypt 사용)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# JWT 설정 (나중엔 .env로 빼야 함)
+SECRET_KEY = os.getenv("SECRET_KEY", "super_secret_key_change_me_please")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24시간
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -18,6 +27,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=15)
+
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
