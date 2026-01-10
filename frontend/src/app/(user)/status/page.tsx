@@ -86,7 +86,7 @@ export default function StatusPage() {
                           <div className="flex flex-wrap gap-2">
                             {Object.entries(post.keyword_ranks || {}).map(([k, v]) => (
                               <span key={k} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs border border-blue-100">
-                                {k}: <span className="font-bold">{v}위</span>
+                                {k}: <span className="font-bold">{String(v)}위</span>
                               </span>
                             ))}
                           </div>
