@@ -21,6 +21,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://34.64.50.56/:8000
     container_name: prod_frontend
     ports:
       - "80:3000" # 외부 80포트(http) -> 내부 3000포트 연결
