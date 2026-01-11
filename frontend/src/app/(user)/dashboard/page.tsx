@@ -1,10 +1,10 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-
 "use client";
 
 import { useState } from "react";
 import axios from "axios";
 import { Bot, PenTool, Search, Send, CheckCircle, AlertTriangle, Loader2 } from "lucide-react";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 export default function Dashboard() {
   const [category, setCategory] = useState("AI Trends");

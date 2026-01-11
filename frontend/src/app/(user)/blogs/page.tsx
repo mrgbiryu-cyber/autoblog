@@ -1,10 +1,10 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-
 "use client";
 
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { Plus, Globe } from "lucide-react";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 export default function BlogManagePage() {
   const [blogs, setBlogs] = useState<any[]>([]);
