@@ -11,12 +11,33 @@ from pydantic import BaseModel
 
 from app.services.credit_service import calculate_required_credits
 from app.services.gemini_service import generate_html
-from app.services.image_service import generate_image_sync
+from app.services.image_service import WORKFLOW_PATH, generate_image_sync
 import logging
 import os
+from pathlib import Path
 
 LOGGER = logging.getLogger("posts")
-WORKFLOW_PATH = os.getenv("COMFYUI_WORKFLOW_PATH", "workflows/ai_marketing.json")
+
+
+def _workflow_path_for_runtime() -> str:
+    """
+    AS-IS: 상대경로 workflows/ai_marketing.json → 실행 위치에 따라 FileNotFound.
+    TO-BE: image_service에서 resolve된 WORKFLOW_PATH를 우선 사용하되,
+          사용자 요구사항(~/autoblog/backend/workflows/ai_marketing.json)도 존재하면 그쪽을 우선합니다.
+    """
+    try:
+        p = Path(WORKFLOW_PATH)
+        if p.exists():
+            return str(p)
+    except Exception:
+        pass
+
+    project_root = Path(__file__).resolve().parents[3]  # .../autoblog
+    backend_candidate = project_root / "backend" / "workflows" / "ai_marketing.json"
+    if backend_candidate.exists():
+        return str(backend_candidate)
+
+    return WORKFLOW_PATH
 
 router = APIRouter()
 
@@ -39,14 +60,15 @@ class PostPreviewPayload(BaseModel):
 
 async def process_image_generation(post_id: int, index: int, prompt: str):
     try:
-        image_bytes = await generate_image_sync(WORKFLOW_PATH, prompt)
+        wf = _workflow_path_for_runtime()
+        image_bytes = await generate_image_sync(wf, prompt)
         os.makedirs("generated_images", exist_ok=True)
         file_path = os.path.join("generated_images", f"post_{post_id}_image_{index}.png")
         with open(file_path, "wb") as fp:
             fp.write(image_bytes)
         LOGGER.info("Image saved: %s", file_path)
     except Exception as exc:
-        LOGGER.error("Failed to generate image #%s for post %s: %s", index, post_id, exc)
+        LOGGER.exception("Image generation failed (post=%s idx=%s type=%s): %s", post_id, index, type(exc).__name__, exc)
 
 
 
@@ -122,7 +144,8 @@ async def generate_post_with_images(
     for i in range(payload.image_count):
         prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} 이미지 프롬프트 #{i + 1}"
         try:
-            image_bytes = await generate_image_sync(WORKFLOW_PATH, prompt)
+            wf = _workflow_path_for_runtime()
+            image_bytes = await generate_image_sync(wf, prompt)
             os.makedirs("generated_images", exist_ok=True)
             filename = f"post_{new_post.id}_img_{i + 1}.png"
             path = os.path.join("generated_images", filename)
@@ -131,8 +154,9 @@ async def generate_post_with_images(
             image_urls.append(f"/generated_images/{filename}")
         except Exception as exc:
             # ComfyUI 미연결/네트워크 오류 등으로 이미지 생성이 실패해도 HTML은 제공해야 합니다.
-            image_error = f"이미지 생성 실패: {exc}"
-            LOGGER.warning("Image generation failed; returning HTML only. (%s)", exc)
+            image_error = f"{type(exc).__name__}: {exc}"
+            # 어떤 통신 에러인지 로그에 남김 (Connection/Timeout/FileNotFound 등)
+            LOGGER.exception("Image generation failed; returning HTML only. (type=%s)", type(exc).__name__)
             break
 
     new_post.image_paths = image_urls

@@ -47,6 +47,7 @@ import json
 import asyncio
 from typing import List, Dict, Any
 from dotenv import load_dotenv  # [수정1] 이거 필수입니다!
+from urllib.parse import urlparse
 
 # [수정2] .env 파일 강제 로드
 load_dotenv()
@@ -59,6 +60,23 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
+
+
+def _normalize_neo4j_uri(uri: str) -> str:
+    """
+    docker 환경에서 bolt://neo4j:7687 로 설정될 수 있는데,
+    단독 실행(또는 GCP) 환경에서는 'neo4j' 호스트가 resolve되지 않아 ServiceUnavailable이 발생합니다.
+    """
+    try:
+        parsed = urlparse(uri)
+        if parsed.hostname == "neo4j":
+            return f"{parsed.scheme}://localhost:{parsed.port or 7687}"
+    except Exception:
+        return uri
+    return uri
+
+
+NEO4J_URI = _normalize_neo4j_uri(NEO4J_URI)
 
 class KnowledgeAgent:
     def __init__(self):
