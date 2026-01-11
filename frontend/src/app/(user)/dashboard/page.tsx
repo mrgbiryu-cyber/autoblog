@@ -75,6 +75,16 @@ export default function Dashboard() {
   const [wordRange, setWordRange] = useState({ min: 800, max: 1200 });
   const [blogs, setBlogs] = useState<any[]>([]);
   const [postsStatus, setPostsStatus] = useState<any[]>([]);
+  const [blogModalOpen, setBlogModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"create" | "edit">("create");
+  const [modalBlog, setModalBlog] = useState<any | null>(null);
+  const [formValues, setFormValues] = useState({
+    alias: "",
+    platform_type: "Naver",
+    blog_url: "",
+    blog_id: "",
+    api_access_token: "",
+  });
 
   const clearImageTimers = () => {
     imageTimersRef.current.forEach((timer) => clearTimeout(timer));
@@ -112,6 +122,61 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.warn("블로그 목록 로딩 실패", error);
+    }
+  };
+
+  const openBlogModal = (mode: "create" | "edit", blog?: any) => {
+    setModalMode(mode);
+    if (mode === "edit" && blog) {
+      setModalBlog(blog);
+      setFormValues({
+        alias: blog.alias || "",
+        platform_type: blog.platform_type || "Naver",
+        blog_url: blog.blog_url || "",
+        blog_id: blog.blog_id || "",
+        api_access_token: blog.api_key_data?.access_token || "",
+      });
+    } else {
+      setModalBlog(null);
+      setFormValues({
+        alias: "",
+        platform_type: "Naver",
+        blog_url: "",
+        blog_id: "",
+        api_access_token: "",
+      });
+    }
+    setBlogModalOpen(true);
+  };
+
+  const closeBlogModal = () => {
+    setBlogModalOpen(false);
+  };
+
+  const handleSaveBlog = async () => {
+    const payload = {
+      alias: formValues.alias,
+      platform_type: formValues.platform_type,
+      blog_url: formValues.blog_url,
+      blog_id: formValues.blog_id,
+      api_access_token: formValues.api_access_token || undefined,
+    };
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/blogs/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (response.ok) {
+        await fetchBlogList();
+        setStatusMessages((prev) => [...prev, "블로그 정보가 저장되었습니다."]);
+        closeBlogModal();
+      } else {
+        const body = await response.json();
+        throw new Error(body.detail || "저장 실패");
+      }
+    } catch (error: any) {
+      setStatusMessages((prev) => [...prev, `블로그 저장 실패: ${error.message}`]);
     }
   };
 
@@ -355,7 +420,13 @@ export default function Dashboard() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {blogs.map((blog) => (
-              <div key={blog.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-1">
+              <div key={blog.id} className="relative rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-1">
+                <button
+                  onClick={() => openBlogModal("edit", blog)}
+                  className="absolute right-3 top-3 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600"
+                >
+                  수정
+                </button>
                 <p className="text-xs text-slate-500 uppercase tracking-[0.2em]">{blog.platform_type}</p>
                 <h3 className="text-lg font-semibold text-slate-900">{blog.alias || "블로그 이름 없음"}</h3>
                 <p className="text-xs text-slate-500 truncate">{blog.blog_url}</p>
@@ -365,9 +436,10 @@ export default function Dashboard() {
             {Array.from({ length: Math.max(0, TOTAL_BLOG_SLOTS - blogs.length) }).map((_, idx) => (
               <button
                 key={`slot-${idx}`}
-                onClick={() => router.push("/blogs")}
+                onClick={() => openBlogModal("create")}
                 className="rounded-2xl border-2 border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 hover:border-slate-900 hover:text-slate-900 transition"
               >
+                <div className="mx-auto mb-2 h-16 w-16 rounded-full border border-slate-300 bg-[url('/image_16d3ac.png')] bg-cover bg-center" />
                 + 등록된 블로그가 없습니다
                 <br />
                 클릭하여 추가
@@ -808,6 +880,72 @@ export default function Dashboard() {
               >
                 <Copy className="h-4 w-4" />
                 HTML 복사
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {blogModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 px-4 py-6">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold">
+                {modalMode === "edit" ? "블로그 정보 수정" : "블로그 등록"}
+              </h3>
+              <button className="text-sm text-slate-500" onClick={closeBlogModal}>
+                닫기
+              </button>
+            </div>
+            <div className="grid gap-3">
+              <label className="text-sm font-semibold text-slate-600">플랫폼</label>
+              <select
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                value={formValues.platform_type}
+                onChange={(e) => setFormValues({ ...formValues, platform_type: e.target.value })}
+              >
+                {["Naver", "Blogger", "Tistory", "InBlog", "WordPress"].map((platform) => (
+                  <option key={platform} value={platform}>
+                    {platform}
+                  </option>
+                ))}
+              </select>
+              <label className="text-sm font-semibold text-slate-600">블로그 이름 (별칭)</label>
+              <input
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                value={formValues.alias}
+                onChange={(e) => setFormValues({ ...formValues, alias: e.target.value })}
+              />
+              <label className="text-sm font-semibold text-slate-600">블로그 URL</label>
+              <input
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                value={formValues.blog_url}
+                onChange={(e) => setFormValues({ ...formValues, blog_url: e.target.value })}
+              />
+              <label className="text-sm font-semibold text-slate-600">블로그 ID</label>
+              <input
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                value={formValues.blog_id}
+                onChange={(e) => setFormValues({ ...formValues, blog_id: e.target.value })}
+              />
+              <label className="text-sm font-semibold text-slate-600">API 키 / 토큰</label>
+              <input
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                value={formValues.api_access_token}
+                onChange={(e) => setFormValues({ ...formValues, api_access_token: e.target.value })}
+              />
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={closeBlogModal}
+                className="rounded-2xl border border-slate-300 px-4 py-2 text-sm text-slate-500"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleSaveBlog}
+                className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+              >
+                저장
               </button>
             </div>
           </div>

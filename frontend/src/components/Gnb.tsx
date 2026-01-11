@@ -20,7 +20,8 @@ export default function Gnb() {
   const pathname = usePathname();
   const { isAuthenticated } = useAuth();
   const isDashboardSection = pathname?.startsWith("/dashboard");
-  const items = isDashboardSection ? subMenu : mainMenu;
+  const showSubMenu = isAuthenticated && isDashboardSection;
+  const items = showSubMenu ? subMenu : mainMenu;
   const authLabel = isAuthenticated ? "대시보드" : "로그인";
   const authHref = isAuthenticated ? "/dashboard" : "/login";
 
