@@ -1,6 +1,6 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://34.64.50.56";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://34.64.50.56";
 
-const buildHeaders = () => {
+export const buildHeaders = () => {
   if (typeof window === "undefined") {
     return {
       "Content-Type": "application/json",
@@ -157,11 +157,11 @@ export type BlogAnalysisResponse = {
   prompt: string;
 };
 
-export async function fetchBlogAnalysis(): Promise<BlogAnalysisResponse> {
+export async function fetchBlogAnalysis(params?: { blog_id?: number; blog_url?: string; alias?: string }): Promise<BlogAnalysisResponse> {
   const response = await fetch(`${API_BASE_URL}/api/v1/blogs/analyze`, {
     method: "POST",
     headers: buildHeaders(),
-    body: JSON.stringify({}),
+    body: JSON.stringify(params || {}),
   });
   if (!response.ok) {
     throw new Error("Blog analysis API error");

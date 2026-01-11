@@ -99,9 +99,21 @@ class CreditLog(Base):
 class Blog(Base):
     __tablename__ = "blogs"
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    # NOTE: 기존 코드 호환을 위해 title은 유지하되, 대시보드/프론트가 쓰는 필드를 추가합니다.
+    title = Column(String, index=True, nullable=True)
+
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
     owner = relationship("User", back_populates="blogs")
+
+    # Dashboard/blog management fields
+    alias = Column(String, nullable=False, default="")
+    platform_type = Column(String, nullable=False, default="Naver")
+    blog_url = Column(String, nullable=False, default="")
+    blog_id = Column(String, nullable=True)
+    api_key_data = Column(JSON, nullable=True)
+    status = Column(String, nullable=True, default="ACTIVE")
+
+    created_at = Column(DateTime(timezone=True), default=func.now())
     posts = relationship("Post", back_populates="blog")
 
 
@@ -110,6 +122,16 @@ class Post(Base):
     id = Column(Integer, primary_key=True, index=True)
     blog_id = Column(Integer, ForeignKey("blogs.id"))
     blog = relationship("Blog", back_populates="posts")
+
+    title = Column(String, nullable=False, default="")
+    content = Column(Text, nullable=True)
+    status = Column(String, nullable=False, default="DRAFT")
+    published_url = Column(String, nullable=True)
+    view_count = Column(Integer, nullable=False, default=0)
+    keyword_ranks = Column(JSON, nullable=True)  # {"keyword": {"rank": 3, "change": 1, ...}, ...} 또는 자유 형식
+    image_paths = Column(JSON, nullable=True)  # ["/generated_images/..png", ...]
+
+    created_at = Column(DateTime(timezone=True), default=func.now())
 
 
 # 7. [신규] 온톨로지/지식 저장소

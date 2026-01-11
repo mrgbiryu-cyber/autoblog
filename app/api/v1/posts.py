@@ -34,6 +34,7 @@ class PostPreviewPayload(BaseModel):
     word_count_range: Tuple[int, int] = (800, 1200)
     img_prompts: list[str] | None = None
     custom_prompt: str | None = None
+    free_trial: bool = False
 
 
 async def process_image_generation(post_id: int, index: int, prompt: str):
@@ -56,7 +57,7 @@ def get_posting_status(
 ):
     # 내 모든 블로그와 그 안의 포스트들을 한 번에 가져옴 (Eager Loading)
     my_blogs = db.query(Blog).options(joinedload(Blog.posts))\
-        .filter(Blog.user_id == current_user.id).all()
+        .filter(Blog.owner_id == current_user.id).all()
     
     result = []
     for blog in my_blogs:
@@ -83,7 +84,7 @@ async def generate_post_with_images(
     if payload.image_count < 1:
         raise HTTPException(status_code=400, detail="이미지 개수는 최소 1개 이상이어야 합니다.")
 
-    blog = db.query(Blog).filter(Blog.user_id == current_user.id).first()
+    blog = db.query(Blog).filter(Blog.owner_id == current_user.id).first()
     if not blog:
         raise HTTPException(status_code=404, detail="등록된 블로그가 없어 미리보기를 생성할 수 없습니다.")
 
@@ -98,23 +99,24 @@ async def generate_post_with_images(
     db.refresh(new_post)
 
     credits_needed = calculate_required_credits(payload.image_count, payload.word_count_range)
-    if current_user.current_credit < credits_needed:
-        raise HTTPException(status_code=402, detail="크레딧이 부족합니다.")
-    current_user.current_credit -= credits_needed
-    credit_entry = models.CreditLog(
-        user_id=current_user.id,
-        amount=-credits_needed,
-        action_type="PREVIEW_GEN",
-        details={"topic": payload.topic, "images": payload.image_count},
-    )
-    db.add(credit_entry)
+    if not payload.free_trial:
+        if current_user.current_credit < credits_needed:
+            raise HTTPException(status_code=402, detail="크레딧이 부족합니다.")
+        current_user.current_credit -= credits_needed
+        credit_entry = models.CreditLog(
+            user_id=current_user.id,
+            amount=-credits_needed,
+            action_type="PREVIEW_GEN",
+            details={"topic": payload.topic, "images": payload.image_count},
+        )
+        db.add(credit_entry)
 
     final_prompt = payload.custom_prompt or f"Generate SEO-friendly HTML for {payload.topic} with persona {payload.persona}."
     html_result = await generate_html(payload.topic, payload.persona, final_prompt, payload.word_count_range, payload.image_count)
     new_post.content = html_result["html"]
     db.commit()
 
-    image_files = []
+    image_urls: list[str] = []
     img_prompts = payload.img_prompts or []
     for i in range(payload.image_count):
         prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} 이미지 프롬프트 #{i + 1}"
@@ -124,7 +126,10 @@ async def generate_post_with_images(
         path = os.path.join("generated_images", filename)
         with open(path, "wb") as fp:
             fp.write(image_bytes)
-        image_files.append(path)
+        image_urls.append(f"/generated_images/{filename}")
+
+    new_post.image_paths = image_urls
+    db.commit()
 
     return {
         "status": "completed",
@@ -133,6 +138,35 @@ async def generate_post_with_images(
         "html": html_result["html"],
         "summary": html_result.get("summary", ""),
         "credits_required": credits_needed,
-        "images": image_files,
+        "images": image_urls,
     }
+
+
+@router.get("/keywords")
+def get_keyword_tracking(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    키워드 트래킹 테이블용 최소 엔드포인트.
+    TODO: 실제 검색엔진 순위 수집/변동 로직 연동 전까지는 저장된 post.keyword_ranks 기반 또는 빈 배열을 반환합니다.
+    """
+    blogs = db.query(Blog).options(joinedload(Blog.posts)).filter(Blog.owner_id == current_user.id).all()
+    rows: list[dict] = []
+    for blog in blogs:
+        for post in blog.posts:
+            ranks = post.keyword_ranks or {}
+            # ranks가 {"키워드": {"rank": 3, "change": 1, "updated_at": "...", "url": "..."}} 형태라고 가정
+            for keyword, meta in ranks.items():
+                if isinstance(meta, dict):
+                    rows.append(
+                        {
+                            "keyword": keyword,
+                            "platform": blog.platform_type,
+                            "rank": meta.get("rank", 0),
+                            "change": meta.get("change", 0),
+                            "updated_at": meta.get("updated_at", ""),
+                        }
+                    )
+    return rows
 

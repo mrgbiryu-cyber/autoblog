@@ -23,6 +23,10 @@ async def get_credit_status(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db),
 ):
+    """
+    Neo4j에 (User)-[:HAS_CREDIT]->(Credit) 구조가 있을 때 amount를 읽어옵니다.
+    없으면 프론트가 깨지지 않도록 기본값을 반환합니다.
+    """
     query = """
     MERGE (u:User {user_id: $user_id})
     WITH u
@@ -32,17 +36,39 @@ async def get_credit_status(
     """
     result = session.run(query, user_id=current_user.id)
     record = result.single()
-    if record and record["amount"] is not None:
-        return {
-            "current_credit": record["amount"],
-            "upcoming_deduction": 6,
-            "currency": "KRW",
-        }
+    if record and record.get("amount") is not None:
+        return {"current_credit": record["amount"], "upcoming_deduction": 6, "currency": "KRW"}
+
+    return {"current_credit": 42, "upcoming_deduction": 6, "currency": "KRW"}
+
+
+@router.get("/schedule")
+async def get_schedule(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+):
+    """
+    저장된 스케줄을 조회합니다. 없으면 null(프론트 fallback) 또는 기본값을 반환할 수 있습니다.
+    """
+    query = """
+    MATCH (u:User {user_id: $user_id})
+    OPTIONAL MATCH (u)-[:SCHEDULED]->(s:Schedule {user_id: $user_id})
+    RETURN s.frequency AS frequency,
+           s.posts_per_day AS posts_per_day,
+           s.days AS days,
+           s.target_times AS target_times
+    LIMIT 1
+    """
+    result = session.run(query, user_id=current_user.id)
+    record = result.single()
+    if not record or record.get("frequency") is None:
+        return None
 
     return {
-        "current_credit": 42,
-        "upcoming_deduction": 6,
-        "currency": "KRW",
+        "frequency": record.get("frequency") or "daily",
+        "posts_per_day": record.get("posts_per_day") or 1,
+        "days": record.get("days") or [],
+        "target_times": record.get("target_times") or [],
     }
 
 
@@ -74,10 +100,3 @@ async def save_schedule(
         updated_at=datetime.utcnow().isoformat(),
     )
     return {"message": "스케줄이 성공적으로 저장되었습니다."}
-from fastapi import APIRouter
-
-router = APIRouter()
-
-@router.get("/summary")
-async def get_summary():
-    return {"message": "Dashboard summary endpoint"}

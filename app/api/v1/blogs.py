@@ -13,15 +13,17 @@ router = APIRouter()
 
 
 class BlogUpdate(BaseModel):
-    alias: str
-    platform_type: str
-    blog_url: str
-    blog_id: str
+    alias: str | None = None
+    platform_type: str | None = None
+    blog_url: str | None = None
+    blog_id: str | None = None
     api_access_token: str | None = None
 
 
 class BlogAnalysisRequest(BaseModel):
     blog_id: int | None = None
+    blog_url: str | None = None
+    alias: str | None = None
 
 
 class BlogAnalysisResponse(BaseModel):
@@ -44,12 +46,13 @@ def create_blog(
         api_data = {"access_token": blog.api_access_token}
 
     new_blog = Blog(
-        user_id=current_user.id,
+        owner_id=current_user.id,
+        title=blog.alias,
         alias=blog.alias,
         platform_type=blog.platform_type,
         blog_url=blog.blog_url,
         blog_id=blog.blog_id,
-        api_key_data=api_data
+        api_key_data=api_data,
     )
 
     db.add(new_blog)
@@ -72,7 +75,12 @@ async def analyze_blog_for_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(Blog).filter(Blog.user_id == current_user.id)
+    # 등록 전(슬롯) 분석도 지원: blog_url이 들어오면 해당 URL로 분석
+    if payload.blog_url:
+        result = await analyze_blog(payload.blog_url, payload.alias or payload.blog_url)
+        return BlogAnalysisResponse(category=result["category"], prompt=result["prompt"])
+
+    query = db.query(Blog).filter(Blog.owner_id == current_user.id)
     if payload.blog_id:
         query = query.filter(Blog.id == payload.blog_id)
 
@@ -93,20 +101,28 @@ def update_blog(
 ):
     blog = (
         db.query(Blog)
-        .filter(Blog.user_id == current_user.id, Blog.id == blog_id)
+        .filter(Blog.owner_id == current_user.id, Blog.id == blog_id)
         .first()
     )
     if not blog:
         raise HTTPException(status_code=404, detail="블로그를 찾을 수 없습니다.")
 
-    blog.alias = payload.alias
-    blog.platform_type = payload.platform_type
-    blog.blog_url = payload.blog_url
-    blog.blog_id = payload.blog_id
-    if payload.api_access_token:
-        blog.api_key_data = {"access_token": payload.api_access_token}
-    else:
-        blog.api_key_data = {}
+    if payload.alias is not None:
+        blog.alias = payload.alias
+        blog.title = payload.alias
+    if payload.platform_type is not None:
+        blog.platform_type = payload.platform_type
+    if payload.blog_url is not None:
+        blog.blog_url = payload.blog_url
+    if payload.blog_id is not None:
+        blog.blog_id = payload.blog_id
+
+    # 토큰은 WordPress/Tistory일 때만 저장(그 외는 빈 값)
+    if payload.api_access_token is not None:
+        if blog.platform_type in ["WordPress", "Tistory"] and payload.api_access_token:
+            blog.api_key_data = {"access_token": payload.api_access_token}
+        else:
+            blog.api_key_data = {}
 
     db.commit()
     db.refresh(blog)
