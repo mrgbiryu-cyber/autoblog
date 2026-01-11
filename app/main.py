@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware  # [추가1] 이거 필요합니다
 from fastapi.staticfiles import StaticFiles
@@ -25,7 +27,12 @@ app.add_middleware(
 )
 
 # 생성된 이미지 폴더 정적 서빙 (posts/preview에서 반환하는 /generated_images/... 경로 대응)
-app.mount("/generated_images", StaticFiles(directory="generated_images"), name="generated_images")
+os.makedirs("generated_images", exist_ok=True)
+app.mount(
+    "/generated_images",
+    StaticFiles(directory="generated_images", check_dir=False),
+    name="generated_images",
+)
 
 # [중요] 서버 시작 시 DB 테이블 자동 생성
 init_db()
