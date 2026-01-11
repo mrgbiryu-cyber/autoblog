@@ -3,12 +3,16 @@ Gemini 2.5 Flash integration helpers for blog analysis and prompt-driven HTML ge
 [cite: 2025-12-23]
 """
 
+import importlib
 import asyncio
 import json
 import logging
 import os
 
-from google import genai
+try:
+    genai = importlib.import_module("google.genai")
+except ModuleNotFoundError:
+    genai = importlib.import_module("google_genai")
 
 LOGGER = logging.getLogger("gemini_service")
 
