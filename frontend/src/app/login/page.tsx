@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Bot, Mail, Lock, User, ArrowRight, Loader2, CheckSquare, Square } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 // 환경변수를 못 읽더라도 무조건 형님의 서버 IP를 바라보게 합니다.
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://34.64.50.56";
 
 export default function AuthPage() {
   const router = useRouter();
+  const auth = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
@@ -42,10 +44,11 @@ export default function AuthPage() {
 
       if (isLogin) {
         const token = response.data.access_token;
-        localStorage.setItem("token", token);
-        axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        const storedName = localStorage.getItem("userName") || formData.name || formData.email;
+        auth.login(token, storedName);
         router.push("/dashboard");
       } else {
+        localStorage.setItem("userName", formData.name || formData.email);
         alert("🎉 회원가입 성공! 로그인해주세요.");
         setIsLogin(true);
         setAgreed(false);

@@ -1,7 +1,9 @@
-"use client";
+ "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Bot, CalendarClock, CreditCard, Copy, Eye, Loader2, Shield } from "lucide-react";
+import Link from "next/link";
 import {
   fetchBlogAnalysis,
   fetchCreditStatus,
@@ -14,6 +16,8 @@ import {
   SchedulePayload,
   PreviewRequest,
 } from "../../../lib/api";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 const PLATFORM_SLOTS = [
   {
@@ -37,15 +41,14 @@ const PLATFORM_SLOTS = [
 ];
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const PERSONAS = ["Data-Driven Strategist", "Friendly Storyteller", "Analytical Analyst", "Community Host"];
-
+const TOTAL_BLOG_SLOTS = 4;
 export default function Dashboard() {
   const [creditInfo, setCreditInfo] = useState<CreditStatusPayload>({
     current_credit: 0,
     upcoming_deduction: 0,
   });
   const [topic, setTopic] = useState("AI Marketing Automation");
-  const [persona, setPersona] = useState(PERSONAS[0]);
+  const [personaText, setPersonaText] = useState("전문 SEO 마케터처럼");
   const [previewHtml, setPreviewHtml] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -66,8 +69,12 @@ export default function Dashboard() {
   const [previewImageCount, setPreviewImageCount] = useState(3);
   const [analysisCategory, setAnalysisCategory] = useState("");
   const [analysisPrompt, setAnalysisPrompt] = useState("");
+  const [analysisButtonText, setAnalysisButtonText] = useState("분석하기");
+  const router = useRouter();
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [wordRange, setWordRange] = useState({ min: 800, max: 1200 });
+  const [blogs, setBlogs] = useState<any[]>([]);
+  const [postsStatus, setPostsStatus] = useState<any[]>([]);
 
   const clearImageTimers = () => {
     imageTimersRef.current.forEach((timer) => clearTimeout(timer));
@@ -80,13 +87,47 @@ export default function Dashboard() {
     };
   }, []);
 
-  const creditBadgeColor = useMemo(() => (creditInfo.current_credit > 30 ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"), [creditInfo]);
-  const creditEstimate = useMemo(
-    () => previewImageCount * 2 + Math.floor(wordRange.max / 1000),
-    [previewImageCount, wordRange.max]
+ 
+
+  const creditBadgeColor = useMemo(
+    () => (creditInfo.current_credit > 30 ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"),
+    [creditInfo]
   );
+  const creditEstimate = useMemo(() => {
+    const base = 5;
+    const imageCost = previewImageCount * 1;
+    const textCost = Math.max(0, Math.ceil(Math.max(0, wordRange.max - 1000) / 500));
+    return base + imageCost + textCost;
+  }, [previewImageCount, wordRange]);
+
+  const fetchBlogList = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/blogs/`, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      if (res.ok) {
+        setBlogs(await res.json());
+      }
+    } catch (error) {
+      console.warn("블로그 목록 로딩 실패", error);
+    }
+  };
 
   useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/v1/posts/status`, {
+          headers: { "Content-Type": "application/json" },
+        });
+        if (res.ok) {
+          setPostsStatus(await res.json());
+        }
+      } catch (error) {
+        console.warn("포스팅 현황 로딩 실패", error);
+      }
+    };
     const fetchBoard = async () => {
       try {
         const [credit, keywords, savedSchedule] = await Promise.all([
@@ -102,8 +143,10 @@ export default function Dashboard() {
       } catch (error) {
         console.warn("Dashboard initial load failed, populating defaults.", error);
       }
+      fetchPosts();
     };
     fetchBoard();
+    fetchBlogList();
   }, []);
 
   const handlePreview = async (freeTrial = false) => {
@@ -111,14 +154,14 @@ export default function Dashboard() {
     setStatusMessages((prev: string[]) => [...prev, freeTrial ? "무료 체험 HTML을 요청합니다..." : "미리보기 AI 엔진을 실행합니다..."]);
     simulateImageGeneration(previewImageCount);
     try {
-      const previewPayload: PreviewRequest = {
-        topic,
-        persona,
-        image_count: previewImageCount,
-        custom_prompt: analysisPrompt || undefined,
-        word_count_range: [wordRange.min, wordRange.max],
-        free_trial: freeTrial,
-      };
+    const previewPayload: PreviewRequest = {
+      topic,
+      persona: personaText,
+      image_count: previewImageCount,
+      custom_prompt: analysisPrompt || undefined,
+      word_count_range: [wordRange.min, wordRange.max],
+      free_trial: freeTrial,
+    };
       const preview = await generatePreviewHtml(previewPayload);
       setPreviewHtml(preview.html);
       setModalOpen(true);
@@ -153,6 +196,7 @@ export default function Dashboard() {
       setAnalysisCategory(result.category);
       setTopic(result.category);
       setAnalysisPrompt(result.prompt);
+      setAnalysisButtonText("다시 분석하기");
       setStatusMessages((prev: string[]) => [...prev, "블로그 분석 결과를 적용했습니다."]);
     } catch (error) {
       console.error("Blog analysis failed", error);
@@ -299,6 +343,39 @@ export default function Dashboard() {
           ))}
         </section>
 
+        <section className="bg-white/90 rounded-3xl border border-slate-100 p-6 shadow-sm space-y-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-slate-900">블로그 관리</h2>
+            <button
+              onClick={() => router.push("/blogs")}
+              className="rounded-full border border-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-900 hover:bg-slate-900 hover:text-white transition"
+            >
+              + 신규 등록
+            </button>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {blogs.map((blog) => (
+              <div key={blog.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-1">
+                <p className="text-xs text-slate-500 uppercase tracking-[0.2em]">{blog.platform_type}</p>
+                <h3 className="text-lg font-semibold text-slate-900">{blog.alias || "블로그 이름 없음"}</h3>
+                <p className="text-xs text-slate-500 truncate">{blog.blog_url}</p>
+                <p className="text-xs text-slate-500">등록 ID: {blog.blog_id}</p>
+              </div>
+            ))}
+            {Array.from({ length: Math.max(0, TOTAL_BLOG_SLOTS - blogs.length) }).map((_, idx) => (
+              <button
+                key={`slot-${idx}`}
+                onClick={() => router.push("/blogs")}
+                className="rounded-2xl border-2 border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 hover:border-slate-900 hover:text-slate-900 transition"
+              >
+                + 등록된 블로그가 없습니다
+                <br />
+                클릭하여 추가
+              </button>
+            ))}
+          </div>
+        </section>
+
         <section className="bg-slate-900 rounded-3xl p-6 space-y-6 border border-slate-800">
           <div className="flex items-center justify-between">
             <div>
@@ -320,18 +397,15 @@ export default function Dashboard() {
               />
             </label>
             <label className="space-y-2 text-sm text-slate-400">
-              페르소나 선택
-              <select
+              페르소나 입력
+              <input
+                type="text"
                 className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
-                value={persona}
-                onChange={(e) => setPersona(e.target.value)}
-              >
-                {PERSONAS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
+                placeholder="예: 전문 SEO 마케터처럼 톤을 맞춰주세요"
+                value={personaText}
+                onChange={(e) => setPersonaText(e.target.value)}
+              />
+              <p className="text-xs text-slate-500">직접 입력한 페르소나가 AI 생성 프롬프트에 반영됩니다.</p>
             </label>
             <label className="space-y-2 text-sm text-slate-400">
               이미지 생성 개수
@@ -421,6 +495,13 @@ export default function Dashboard() {
               className="rounded-2xl border border-slate-700 px-5 py-3 font-semibold text-slate-300 hover:border-cyan-400"
             >
               무료 체험으로 HTML 생성
+            </button>
+            <button
+              onClick={handleAnalyze}
+              disabled={analysisLoading}
+              className="rounded-2xl border border-slate-700 px-5 py-3 font-semibold text-slate-300 hover:border-cyan-400 disabled:opacity-60"
+            >
+              {analysisLoading ? "분석 중..." : analysisButtonText}
             </button>
             {previewHtml && (
               <button
@@ -612,6 +693,79 @@ export default function Dashboard() {
                       <td className="py-3 text-slate-500">{row.updated_at}</td>
                     </tr>
                   ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="bg-slate-900 rounded-3xl p-6 border border-slate-800">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-semibold">포스팅 현황</h2>
+            <Link href="/status" className="text-xs uppercase tracking-[0.3em] text-slate-400 hover:text-white transition">
+              전체 보기
+            </Link>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm text-slate-200">
+              <thead className="text-xs text-slate-400">
+                <tr>
+                  <th className="pb-3 pr-6">발행 글 제목</th>
+                  <th className="pb-3 pr-6">날짜</th>
+                  <th className="pb-3 pr-6">키워드</th>
+                  <th className="pb-3 pr-6">플랫폼</th>
+                  <th className="pb-3 pr-6">순위</th>
+                  <th className="pb-3 pr-6">변동</th>
+                  <th className="pb-3 pr-6">업데이트</th>
+                  <th className="pb-3">원문링크</th>
+                </tr>
+              </thead>
+              <tbody>
+                {postsStatus.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-6 text-center text-slate-500">
+                      아직 생성된 포스팅이 없습니다. AI로 첫 글을 만들어보세요!
+                    </td>
+                  </tr>
+                ) : (
+                  postsStatus.flatMap((blogGroup) =>
+                    blogGroup.posts.map((post: any) => (
+                      <tr key={`${post.id}-${blogGroup.blog_alias}`} className="border-t border-slate-800">
+                        <td className="py-3 pr-6 font-semibold text-slate-100">{post.title}</td>
+                        <td className="py-3 pr-6 text-slate-400">{new Date(post.created_at).toLocaleString()}</td>
+                        <td className="py-3 pr-6 text-slate-200">
+                          {post.keyword_ranks && Object.keys(post.keyword_ranks).length
+                            ? Object.keys(post.keyword_ranks).join(", ")
+                            : "집계 중"}
+                        </td>
+                        <td className="py-3 pr-6 text-slate-200">{blogGroup.platform}</td>
+                        <td className="py-3 pr-6 text-cyan-300">
+                          {post.keyword_ranks && Object.values(post.keyword_ranks).length ? (
+                            (() => {
+                              const ranks = Object.values(post.keyword_ranks).filter(
+                                (value): value is number => typeof value === "number"
+                              );
+                              return ranks.length ? `${Math.min(...ranks)}위` : "-";
+                            })()
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="py-3 pr-6 text-slate-200">
+                          {post.keyword_ranks && Object.values(post.keyword_ranks).length ? "+0" : "집계 중"}
+                        </td>
+                        <td className="py-3 pr-6 text-xs text-slate-500">{post.status}</td>
+                        <td className="py-3 text-slate-200">
+                          <Link
+                            href="/status"
+                            className="text-blue-300 hover:text-blue-500"
+                          >
+                            상세 보기
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
+                  )
                 )}
               </tbody>
             </table>
