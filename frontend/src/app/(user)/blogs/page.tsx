@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { Plus, Globe } from "lucide-react";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+// 환경변수를 못 읽더라도 무조건 형님의 서버 IP를 바라보게 합니다.
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://34.64.50.56";
 
 export default function BlogManagePage() {
   const [blogs, setBlogs] = useState<any[]>([]);
