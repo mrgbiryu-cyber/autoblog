@@ -11,6 +11,7 @@ from fastapi import BackgroundTasks
 LOGGER = logging.getLogger("image_service")
 
 COMFYUI_API_URL = os.getenv("COMFYUI_API_URL", "http://127.0.0.1:8188")
+COMFYUI_TIMEOUT_SECONDS = float(os.getenv("COMFYUI_TIMEOUT_SECONDS", "120"))
 
 
 def resolve_workflow_path() -> str:
@@ -65,6 +66,23 @@ def resolve_workflow_path() -> str:
 
 
 WORKFLOW_PATH = resolve_workflow_path()
+
+# GCP 서버에 저장되는 이미지 폴더(정적 서빙 대상)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]  # .../autoblog
+GENERATED_DIR = PROJECT_ROOT / "static" / "generated_images"
+GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def save_image_bytes(filename: str, image_bytes: bytes) -> str:
+    """
+    AS-IS: 로컬 디스크(generated_images)에 저장 → GCP에서 다운로드 불가
+    TO-BE: GCP 서버의 static/generated_images 에 저장하고,
+          /generated_images/<filename> URL로 접근 가능하게 합니다.
+    """
+    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+    target = GENERATED_DIR / filename
+    target.write_bytes(image_bytes)
+    return f"/generated_images/{filename}"
 
 
 def load_workflow(workflow_path: str) -> dict:
@@ -121,7 +139,8 @@ async def _run_comfy_workflow(workflow_path: str, prompt: str) -> bytes:
     workflow = load_workflow(workflow_path)
     workflow = _inject_prompt(workflow, prompt)
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    timeout = httpx.Timeout(COMFYUI_TIMEOUT_SECONDS, connect=5.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
         try:
             submit = await client.post(f"{COMFYUI_API_URL}/prompt", json={"prompt": workflow})
             submit.raise_for_status()
@@ -169,12 +188,10 @@ async def generate_image_background(
         try:
             result_bytes = await _run_comfy_workflow(workflow_path, prompt)
             file_name = f"comfy_{int(asyncio.get_event_loop().time())}.png"
-            os.makedirs("generated_images", exist_ok=True)
-            with open(os.path.join("generated_images", file_name), "wb") as fp:
-                fp.write(result_bytes)
-            LOGGER.info("이미지 생성 완료: %s", file_name)
+            url = save_image_bytes(file_name, result_bytes)
+            LOGGER.info("이미지 생성 완료: %s", url)
         except Exception as exc:
-            LOGGER.error("배경 이미지 생성 중 오류: %s", exc)
+            LOGGER.exception("배경 이미지 생성 중 오류(%s): %s", type(exc).__name__, exc)
 
     background_tasks.add_task(_task)
     return "이미지 생성 작업이 백그라운드에서 시작되었습니다."

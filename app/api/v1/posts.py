@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from app.services.credit_service import calculate_required_credits
 from app.services.gemini_service import generate_html
-from app.services.image_service import WORKFLOW_PATH, generate_image_sync
+from app.services.image_service import WORKFLOW_PATH, generate_image_sync, save_image_bytes
 import logging
 import os
 from pathlib import Path
@@ -62,11 +62,9 @@ async def process_image_generation(post_id: int, index: int, prompt: str):
     try:
         wf = _workflow_path_for_runtime()
         image_bytes = await generate_image_sync(wf, prompt)
-        os.makedirs("generated_images", exist_ok=True)
-        file_path = os.path.join("generated_images", f"post_{post_id}_image_{index}.png")
-        with open(file_path, "wb") as fp:
-            fp.write(image_bytes)
-        LOGGER.info("Image saved: %s", file_path)
+        filename = f"post_{post_id}_image_{index}.png"
+        url = save_image_bytes(filename, image_bytes)
+        LOGGER.info("Image saved (static): %s", url)
     except Exception as exc:
         LOGGER.exception("Image generation failed (post=%s idx=%s type=%s): %s", post_id, index, type(exc).__name__, exc)
 
@@ -146,12 +144,9 @@ async def generate_post_with_images(
         try:
             wf = _workflow_path_for_runtime()
             image_bytes = await generate_image_sync(wf, prompt)
-            os.makedirs("generated_images", exist_ok=True)
             filename = f"post_{new_post.id}_img_{i + 1}.png"
-            path = os.path.join("generated_images", filename)
-            with open(path, "wb") as fp:
-                fp.write(image_bytes)
-            image_urls.append(f"/generated_images/{filename}")
+            url = save_image_bytes(filename, image_bytes)
+            image_urls.append(url)
         except Exception as exc:
             # ComfyUI 미연결/네트워크 오류 등으로 이미지 생성이 실패해도 HTML은 제공해야 합니다.
             image_error = f"{type(exc).__name__}: {exc}"

@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware  # [추가1] 이거 필요합니다
@@ -27,10 +28,12 @@ app.add_middleware(
 )
 
 # 생성된 이미지 폴더 정적 서빙 (posts/preview에서 반환하는 /generated_images/... 경로 대응)
-os.makedirs("generated_images", exist_ok=True)
+# TO-BE: GCP 서버가 직접 서빙할 수 있도록 static/generated_images 로 저장/서빙 경로를 고정합니다.
+static_generated_dir = Path("static") / "generated_images"
+static_generated_dir.mkdir(parents=True, exist_ok=True)
 app.mount(
     "/generated_images",
-    StaticFiles(directory="generated_images", check_dir=False),
+    StaticFiles(directory=str(static_generated_dir), check_dir=False),
     name="generated_images",
 )
 
