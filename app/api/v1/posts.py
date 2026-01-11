@@ -1,8 +1,9 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Tuple
 
 from app.core.database import get_db
+from app.models import sql_models as models
 from app.models.sql_models import Post, Blog, User
 from app.schemas import PostStatusResponse
 from app.core.deps import get_current_user
@@ -76,7 +77,6 @@ def get_posting_status(
 @router.post("/preview")
 async def generate_post_with_images(
     payload: PostPreviewPayload,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -97,24 +97,42 @@ async def generate_post_with_images(
     db.commit()
     db.refresh(new_post)
 
+    credits_needed = calculate_required_credits(payload.image_count, payload.word_count_range)
+    if current_user.current_credit < credits_needed:
+        raise HTTPException(status_code=402, detail="크레딧이 부족합니다.")
+    current_user.current_credit -= credits_needed
+    credit_entry = models.CreditLog(
+        user_id=current_user.id,
+        amount=-credits_needed,
+        action_type="PREVIEW_GEN",
+        details={"topic": payload.topic, "images": payload.image_count},
+    )
+    db.add(credit_entry)
+
     final_prompt = payload.custom_prompt or f"Generate SEO-friendly HTML for {payload.topic} with persona {payload.persona}."
     html_result = await generate_html(payload.topic, payload.persona, final_prompt, payload.word_count_range, payload.image_count)
     new_post.content = html_result["html"]
     db.commit()
 
+    image_files = []
     img_prompts = payload.img_prompts or []
     for i in range(payload.image_count):
         prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} 이미지 프롬프트 #{i + 1}"
-        background_tasks.add_task(process_image_generation, post_id=new_post.id, index=i + 1, prompt=prompt)
+        image_bytes = await generate_image_sync(WORKFLOW_PATH, prompt)
+        os.makedirs("generated_images", exist_ok=True)
+        filename = f"post_{new_post.id}_img_{i + 1}.png"
+        path = os.path.join("generated_images", filename)
+        with open(path, "wb") as fp:
+            fp.write(image_bytes)
+        image_files.append(path)
 
-    credits_needed = calculate_required_credits(payload.image_count, payload.word_count_range)
     return {
-        "status": "processing",
+        "status": "completed",
         "image_total": payload.image_count,
-        "message": "본문 생성 완료. 이미지는 순차적으로 생성됩니다.",
         "post_id": new_post.id,
         "html": html_result["html"],
         "summary": html_result.get("summary", ""),
         "credits_required": credits_needed,
+        "images": image_files,
     }
 

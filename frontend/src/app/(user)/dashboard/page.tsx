@@ -16,7 +16,9 @@ import {
   KeywordTrackerRow,
   SchedulePayload,
   PreviewRequest,
+  PreviewResponse,
 } from "../../../lib/api";
+import { updateBlogConfig } from "@/services/settingsApi";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -86,6 +88,9 @@ export default function Dashboard() {
     blog_id: "",
     api_access_token: "",
   });
+  const [selectedBlogId, setSelectedBlogId] = useState<number | null>(null);
+  const selectedBlog = blogs.find((blog) => blog.id === selectedBlogId);
+  const [generateResult, setGenerateResult] = useState<PreviewResponse | null>(null);
 
   const clearImageTimers = () => {
     imageTimersRef.current.forEach((timer) => clearTimeout(timer));
@@ -246,6 +251,7 @@ export default function Dashboard() {
     };
       const preview = await generatePreviewHtml(previewPayload);
       setPreviewHtml(preview.html);
+      setGenerateResult(preview);
       setModalOpen(true);
       setStatusMessages((prev: string[]) => [
         ...prev,
@@ -288,6 +294,10 @@ export default function Dashboard() {
     }
   };
 
+  const handleCardToggle = (blogId: number) => {
+    setSelectedBlogId((prev) => (prev === blogId ? null : blogId));
+  };
+
   const updateWordRange = (key: "min" | "max", value: number) => {
     setWordRange((prev) => {
       const normalized = key === "min" ? Math.min(value, prev.max) : Math.max(value, prev.min);
@@ -310,6 +320,24 @@ export default function Dashboard() {
     anchor.click();
     URL.revokeObjectURL(url);
     setStatusMessages((prev: string[]) => [...prev, "HTML 다운로드 링크가 생성되었습니다."]);
+  };
+
+  const handleDownloadAll = () => {
+    if (!generateResult) return;
+    const htmlBlob = new Blob([generateResult.html], { type: "text/html" });
+    const htmlUrl = URL.createObjectURL(htmlBlob);
+    const htmlAnchor = document.createElement("a");
+    htmlAnchor.href = htmlUrl;
+    htmlAnchor.download = `ai_preview_${Date.now()}.html`;
+    htmlAnchor.click();
+    URL.revokeObjectURL(htmlUrl);
+    generateResult.images?.forEach((path, idx) => {
+      const anchor = document.createElement("a");
+      anchor.href = path;
+      anchor.download = `preview_image_${idx + 1}.png`;
+      anchor.click();
+    });
+    setStatusMessages((prev: string[]) => [...prev, "HTML 및 이미지 다운로드가 완료되었습니다."]);
   };
 
   const simulateImageGeneration = (total: number) => {
@@ -417,27 +445,37 @@ export default function Dashboard() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {blogs.map((blog) => (
-              <div key={blog.id} className="relative rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+              <button
+                key={blog.id}
+                onClick={() => handleCardToggle(blog.id)}
+                className="relative rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2 text-left hover:border-slate-900 transition"
+              >
                 <div className="absolute right-3 top-3 flex gap-1">
                   <button
-                    onClick={() => openBlogModal("edit", blog)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openBlogModal("edit", blog);
+                    }}
                     className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:border-slate-900"
                   >
                     <span className="sr-only">수정</span>
                     ⚙️
                   </button>
                   <button
-                    onClick={() => handleDeleteBlog(blog.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteBlog(blog.id);
+                    }}
                     className="rounded-full border border-red-200 bg-white px-2 py-1 text-xs text-red-600 hover:border-red-500"
                   >
-                    ✕
-                  </button>
-                </div>
+                      ✕
+                    </button>
+                  </div>
                 <p className="text-xs text-slate-500 uppercase tracking-[0.2em]">{blog.platform_type}</p>
                 <h3 className="text-lg font-semibold text-slate-900">{blog.alias || "블로그 이름 없음"}</h3>
                 <p className="text-xs text-slate-500 truncate">{blog.blog_url}</p>
                 <p className="text-xs text-slate-500">등록 ID: {blog.blog_id}</p>
-              </div>
+              </button>
             ))}
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -456,7 +494,9 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="bg-slate-900 rounded-3xl p-6 space-y-6 border border-slate-800">
+        {selectedBlog ? (
+          <>
+            <section className="bg-slate-900 rounded-3xl p-6 space-y-6 border border-slate-800">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-semibold">지식 기반 AI 포스팅</h2>
@@ -594,6 +634,14 @@ export default function Dashboard() {
                 </span>
               </button>
             )}
+            {generateResult && (
+              <button
+                onClick={handleDownloadAll}
+                className="rounded-2xl px-5 py-3 text-sm font-semibold bg-amber-400 text-slate-900"
+              >
+                HTML 및 이미지 다운로드
+              </button>
+            )}
             <button
               onClick={handleDownloadAssets}
               disabled={imageStatus !== "completed"}
@@ -603,7 +651,7 @@ export default function Dashboard() {
                   : "bg-slate-800 text-slate-500 cursor-not-allowed"
               }`}
             >
-              {imageStatus === "processing" ? "이미지 생성 중..." : "HTML 및 이미지 다운로드"}
+              {imageStatus === "processing" ? "이미지 생성 중..." : "HTML 및 이미지 다운로드 (모달)"}
             </button>
           </div>
           <p className="text-xs text-slate-500">
@@ -635,7 +683,13 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
-        </section>
+            </section>
+          </>
+        ) : (
+          <div className="rounded-3xl border border-dashed border-slate-600 p-6 text-center text-slate-500">
+            등록된 블로그 카드를 클릭하면 설정이 펼쳐집니다.
+          </div>
+        )}
 
         <section className="bg-slate-900 rounded-3xl p-6 border border-slate-800 space-y-5">
           <div className="flex items-center justify-between">

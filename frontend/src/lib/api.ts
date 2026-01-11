@@ -48,6 +48,7 @@ export type PreviewResponse = {
   html: string;
   summary: string;
   credits_required?: number;
+  images?: string[];
 };
 
 export async function fetchCreditStatus(): Promise<CreditStatusPayload> {
