@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Tuple
 
@@ -62,8 +62,24 @@ async def process_image_generation(post_id: int, index: int, prompt: str):
     try:
         wf = _workflow_path_for_runtime()
         image_bytes = await generate_image_sync(wf, prompt)
-        filename = f"post_{post_id}_image_{index}.png"
+        filename = f"post_{post_id}_img_{index}.png"
         url = save_image_bytes(filename, image_bytes)
+
+        # DB에도 이미지 URL 저장 (다운로드/상태 확인용)
+        from app.core.database import SessionLocal
+
+        db = SessionLocal()
+        try:
+            post = db.query(Post).filter(Post.id == post_id).first()
+            if post:
+                paths = post.image_paths or []
+                if url not in paths:
+                    paths.append(url)
+                    post.image_paths = paths
+                    db.commit()
+        finally:
+            db.close()
+
         LOGGER.info("Image saved (static): %s", url)
     except Exception as exc:
         LOGGER.exception("Image generation failed (post=%s idx=%s type=%s): %s", post_id, index, type(exc).__name__, exc)
@@ -98,6 +114,7 @@ def get_posting_status(
 @router.post("/preview")
 async def generate_post_with_images(
     payload: PostPreviewPayload,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -136,36 +153,27 @@ async def generate_post_with_images(
     new_post.content = html_result["html"]
     db.commit()
 
-    image_urls: list[str] = []
-    image_error: str | None = None
+    # TO-BE: 이미지 생성은 백그라운드로 돌리고, HTML은 즉시 반환해 Nginx 504를 방지합니다.
     img_prompts = payload.img_prompts or []
-    for i in range(payload.image_count):
-        prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} 이미지 프롬프트 #{i + 1}"
-        try:
-            wf = _workflow_path_for_runtime()
-            image_bytes = await generate_image_sync(wf, prompt)
-            filename = f"post_{new_post.id}_img_{i + 1}.png"
-            url = save_image_bytes(filename, image_bytes)
-            image_urls.append(url)
-        except Exception as exc:
-            # ComfyUI 미연결/네트워크 오류 등으로 이미지 생성이 실패해도 HTML은 제공해야 합니다.
-            image_error = f"{type(exc).__name__}: {exc}"
-            # 어떤 통신 에러인지 로그에 남김 (Connection/Timeout/FileNotFound 등)
-            LOGGER.exception("Image generation failed; returning HTML only. (type=%s)", type(exc).__name__)
-            break
 
-    new_post.image_paths = image_urls
+    # 프론트가 스켈레톤을 그릴 수 있도록 미리 URL을 확정해서 반환
+    image_urls = [f"/generated_images/post_{new_post.id}_img_{i + 1}.png" for i in range(payload.image_count)]
+    new_post.image_paths = []  # 실제 저장 완료된 것만 DB에 축적
     db.commit()
 
+    for i in range(payload.image_count):
+        prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} 이미지 프롬프트 #{i + 1}"
+        background_tasks.add_task(process_image_generation, post_id=new_post.id, index=i + 1, prompt=prompt)
+
     return {
-        "status": "completed" if not image_error else "image_failed",
+        "status": "processing",
         "image_total": payload.image_count,
         "post_id": new_post.id,
         "html": html_result["html"],
         "summary": html_result.get("summary", ""),
         "credits_required": credits_needed,
         "images": image_urls,
-        "image_error": image_error,
+        "image_error": None,
     }
 
 

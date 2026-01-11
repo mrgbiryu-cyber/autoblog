@@ -588,7 +588,38 @@ export default function Dashboard() {
       setPreviewHtml(preview.html);
       setGenerateResult(preview);
       setModalOpen(true);
-      if (preview.images && preview.images.length) {
+      if (preview.status === "processing" && preview.images && preview.images.length) {
+        // 백엔드가 HTML 먼저 반환하고, 이미지는 백그라운드로 생성됨
+        setImageTotal(preview.images.length);
+        setCompletedImages(0);
+        setImageStatus("processing");
+        setImageCards(preview.images.map((src, idx) => ({ id: idx + 1, src: null })));
+
+        // 이미지 URL을 폴링해서 생성 완료되면 스켈레톤을 실제 이미지로 교체
+        const poll = async () => {
+          const urls = preview.images || [];
+          const checks = await Promise.all(
+            urls.map(async (u) => {
+              try {
+                const res = await fetch(`${u}?t=${Date.now()}`, { method: "HEAD" });
+                return res.ok;
+              } catch {
+                return false;
+              }
+            })
+          );
+          const done = checks.filter(Boolean).length;
+          setCompletedImages(done);
+          setImageCards(urls.map((u, idx) => ({ id: idx + 1, src: checks[idx] ? u : null })));
+          if (done >= urls.length) {
+            setImageStatus("completed");
+            return;
+          }
+          setTimeout(poll, 1200);
+        };
+        setTimeout(poll, 800);
+      } else if (preview.images && preview.images.length) {
+        // 즉시 완료(또는 fallback)
         setImageCards(preview.images.map((src, idx) => ({ id: idx + 1, src })));
         setImageTotal(preview.images.length);
         setCompletedImages(preview.images.length);
@@ -606,7 +637,7 @@ export default function Dashboard() {
       ]);
     } catch (error) {
       console.error("Preview generation failed", error);
-      setStatusMessages((prev: string[]) => [...prev, "미리보기 생성에 실패했습니다."]);
+      setStatusMessages((prev: string[]) => [...prev, `미리보기 생성에 실패했습니다: ${(error as Error).message}`]);
     } finally {
       setPreviewLoading(false);
     }
