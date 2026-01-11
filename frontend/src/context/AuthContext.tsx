@@ -3,6 +3,16 @@
 import axios from "axios";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
+const normalizeDisplayName = (raw?: string | null): string | null => {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (trimmed.includes("@")) {
+    return trimmed.split("@")[0] || trimmed;
+  }
+  return trimmed;
+};
+
 type AuthContextType = {
   token: string | null;
   displayName: string | null;
@@ -19,13 +29,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const storedToken = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    const storedName = typeof window !== "undefined" ? localStorage.getItem("userName") : null;
+    const storedName =
+      typeof window !== "undefined"
+        ? localStorage.getItem("displayName") || localStorage.getItem("userName")
+        : null;
     if (storedToken) {
       setToken(storedToken);
       axios.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
     }
     if (storedName) {
-      setDisplayName(storedName);
+      setDisplayName(normalizeDisplayName(storedName));
     }
   }, []);
 
@@ -33,9 +46,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setToken(newToken);
     axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
     localStorage.setItem("token", newToken);
-    if (name) {
-      setDisplayName(name);
-      localStorage.setItem("userName", name);
+    const normalized = normalizeDisplayName(name);
+    if (normalized) {
+      setDisplayName(normalized);
+      localStorage.setItem("displayName", normalized);
+      localStorage.setItem("userName", normalized); // backward compat
     }
   }, []);
 

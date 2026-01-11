@@ -20,7 +20,8 @@ import {
 } from "../../../lib/api";
 import { updateBlogConfig } from "@/services/settingsApi";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+// 환경변수를 못 읽더라도 무조건 서버를 바라보게 합니다.
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://34.64.50.56";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TOTAL_BLOG_SLOTS = 5;
@@ -119,32 +120,32 @@ export default function Dashboard() {
     const statusText = blog ? blog.status || "연결 대기" : "등록 전";
 
     return (
-      <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 space-y-6">
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 space-y-6 text-slate-900">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">플랫폼 정보</p>
-            <h3 className="text-2xl font-semibold text-white">{displayAlias}</h3>
-            <p className="text-sm text-slate-400 truncate">{displayUrl}</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">플랫폼 정보</p>
+            <h3 className="text-2xl font-semibold text-slate-900">{displayAlias}</h3>
+            <p className="text-sm text-slate-600 truncate">{displayUrl}</p>
             <p className="text-xs text-slate-500">플랫폼: {displayPlatform}</p>
           </div>
-          <div className="text-xs text-slate-400 text-right">
+          <div className="text-xs text-slate-600 text-right">
             <p>API 키: {hasApiKey ? "등록됨" : "미등록"}</p>
             <p>상태: {statusText}</p>
           </div>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
-          <label className="space-y-2 text-sm text-slate-400">
+          <label className="space-y-2 text-sm text-slate-700">
             블로그 별칭
             <input
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none"
               value={panelForm.alias}
               onChange={(e) => handlePanelFormChange("alias", e.target.value)}
             />
           </label>
-          <label className="space-y-2 text-sm text-slate-400">
+          <label className="space-y-2 text-sm text-slate-700">
             플랫폼
             <select
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:border-cyan-500 focus:outline-none"
               value={panelForm.platform_type}
               onChange={(e) => handlePanelFormChange("platform_type", e.target.value)}
             >
@@ -155,75 +156,75 @@ export default function Dashboard() {
               ))}
             </select>
           </label>
-          <label className="space-y-2 text-sm text-slate-400">
+          <label className="space-y-2 text-sm text-slate-700">
             블로그 URL
             <input
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none"
               value={panelForm.blog_url}
               onChange={(e) => handlePanelFormChange("blog_url", e.target.value)}
             />
           </label>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="space-y-2 text-sm text-slate-400">
+          <label className="space-y-2 text-sm text-slate-700">
             블로그 ID
             <input
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none"
               value={panelForm.blog_id}
               onChange={(e) => handlePanelFormChange("blog_id", e.target.value)}
             />
           </label>
-          <label className="space-y-2 text-sm text-slate-400">
+          <label className="space-y-2 text-sm text-slate-700">
             API 키 / 토큰
             <input
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none"
               value={panelForm.api_access_token}
               onChange={(e) => handlePanelFormChange("api_access_token", e.target.value)}
             />
           </label>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
-          <label className="space-y-2 text-sm text-slate-400">
+          <label className="space-y-2 text-sm text-slate-700">
             관심 주제 입력
             <input
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder="예: AI 마케팅 자동화, 노코드 리드 생성"
             />
           </label>
-          <label className="space-y-2 text-sm text-slate-400">
+          <label className="space-y-2 text-sm text-slate-700">
             페르소나 입력
             <input
               type="text"
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none"
               placeholder="예: 전문 SEO 마케터처럼 톤을 맞춰주세요"
               value={personaText}
               onChange={(e) => setPersonaText(e.target.value)}
             />
             <p className="text-xs text-slate-500">직접 입력한 페르소나가 AI 생성 프롬프트에 반영됩니다.</p>
           </label>
-          <label className="space-y-2 text-sm text-slate-400">
+          <label className="space-y-2 text-sm text-slate-700">
             이미지 생성 개수
             <input
               type="number"
               min={1}
               max={8}
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:border-cyan-500 focus:outline-none"
               value={previewImageCount}
               onChange={(e) => setPreviewImageCount(Math.max(1, Number(e.target.value)))}
             />
           </label>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="space-y-2 text-sm text-slate-400">
+          <label className="space-y-2 text-sm text-slate-700">
             글자수 범위 (min / max)
             <div className="flex gap-3">
               <input
                 type="number"
                 min={200}
                 max={wordRange.max}
-                className="w-1/2 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                className="w-1/2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:border-cyan-500 focus:outline-none"
                 value={wordRange.min}
                 onChange={(e) => updateWordRange("min", Number(e.target.value))}
               />
@@ -231,37 +232,37 @@ export default function Dashboard() {
                 type="number"
                 min={wordRange.min}
                 max={2000}
-                className="w-1/2 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                className="w-1/2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:border-cyan-500 focus:outline-none"
                 value={wordRange.max}
                 onChange={(e) => updateWordRange("max", Number(e.target.value))}
               />
             </div>
           </label>
-          <div className="rounded-2xl border border-slate-700 bg-slate-900 px-5 py-4 text-sm text-slate-200">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-900">
             <p className="text-xs text-slate-500">예상 크레딧 소모량</p>
-            <p className="text-xl font-semibold text-white">{creditEstimate} 크레딧</p>
+            <p className="text-xl font-semibold text-slate-900">{creditEstimate} 크레딧</p>
             <p className="text-xs text-slate-500">
               이미지 {previewImageCount}장 · 최대 {wordRange.max}자 기준
             </p>
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 space-y-3">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
               분석된 카테고리: {analysisLoading ? "분석 중..." : analysisCategory || "불러오는 중..."}
             </p>
             <button
               onClick={handleAnalyze}
               disabled={analysisLoading}
-              className="rounded-full border border-slate-700 px-4 py-1 text-xs text-slate-300 hover:border-cyan-400 disabled:opacity-60"
+              className="rounded-full border border-slate-300 bg-white px-4 py-1 text-xs text-slate-700 hover:border-cyan-500 disabled:opacity-60"
             >
               {analysisLoading ? "재분석 중..." : analysisButtonText}
             </button>
           </div>
-          <label className="space-y-2 text-sm text-slate-400">
+          <label className="space-y-2 text-sm text-slate-700">
             작성 지시 프롬프트 (수정 가능)
             <textarea
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none"
               rows={3}
               value={analysisPrompt}
               onChange={(e) => setAnalysisPrompt(e.target.value)}
@@ -273,17 +274,17 @@ export default function Dashboard() {
         </div>
 
         {/* 스케줄링 설정 (통합) */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 space-y-4">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-slate-200">스케줄링 설정</h4>
+            <h4 className="text-sm font-semibold text-slate-900">스케줄링 설정</h4>
             <p className="text-xs text-slate-500">요일/빈도/시간을 설정해 자동 발행을 예약합니다.</p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
-            <label className="space-y-2 text-sm text-slate-400">
+            <label className="space-y-2 text-sm text-slate-700">
               발행 빈도
               <select
-                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:border-cyan-500 focus:outline-none"
                 value={schedule.frequency}
                 onChange={(e) =>
                   setSchedule((prev: SchedulePayload) => ({
@@ -298,13 +299,13 @@ export default function Dashboard() {
               </select>
             </label>
 
-            <label className="space-y-2 text-sm text-slate-400">
+            <label className="space-y-2 text-sm text-slate-700">
               하루 발행 수
               <input
                 type="number"
                 min={1}
                 max={5}
-                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:border-cyan-500 focus:outline-none"
                 value={schedule.posts_per_day}
                 onChange={(e) =>
                   setSchedule((prev: SchedulePayload) => ({
@@ -315,21 +316,21 @@ export default function Dashboard() {
               />
             </label>
 
-            <label className="space-y-2 text-sm text-slate-400">
+            <label className="space-y-2 text-sm text-slate-700">
               타겟 시간
               <div className="space-y-2">
                 {schedule.target_times.map((time: string, index: number) => (
                   <div key={`${time}-${index}`} className="flex gap-2 items-center">
                     <input
                       type="time"
-                      className="flex-1 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                      className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-slate-900 focus:border-cyan-500 focus:outline-none"
                       value={time}
                       onChange={(e) => updateTime(e.target.value, index)}
                     />
                     <button
                       type="button"
                       onClick={() => removeTimeSlot(index)}
-                      className="rounded-full bg-slate-800 px-3 py-2 text-xs text-slate-400"
+                      className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 hover:border-slate-400"
                     >
                       삭제
                     </button>
@@ -338,7 +339,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={addTimeSlot}
-                  className="rounded-2xl border border-dashed border-slate-700 px-4 py-2 text-xs text-slate-400"
+                  className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-2 text-xs text-slate-600 hover:border-slate-500"
                 >
                   시간 추가
                 </button>
@@ -346,14 +347,14 @@ export default function Dashboard() {
             </label>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 md:grid-cols-7">
+          <div className="grid grid-cols-2 gap-2 text-xs text-slate-700 md:grid-cols-7">
             {WEEKDAYS.map((day) => (
               <button
                 key={day}
                 type="button"
                 onClick={() => toggleDay(day)}
                 className={`rounded-2xl border px-3 py-2 uppercase tracking-[0.2em] ${
-                  schedule.days.includes(day) ? "border-cyan-400 text-cyan-300" : "border-slate-700 text-slate-500"
+                  schedule.days.includes(day) ? "border-cyan-500 text-cyan-700 bg-cyan-50" : "border-slate-200 text-slate-600 bg-white"
                 }`}
               >
                 {day}
@@ -385,30 +386,10 @@ export default function Dashboard() {
           </button>
         </div>
         <div className="flex flex-wrap gap-3 text-sm">
-          <button
-            onClick={() => handlePreview(false)}
-            disabled={previewLoading}
-            className="rounded-2xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950 shadow-lg shadow-cyan-500/40 disabled:opacity-60"
-          >
-            {previewLoading ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                실행 중...
-              </span>
-            ) : (
-              "Live Preview 생성"
-            )}
-          </button>
-          <button
-            onClick={() => handlePreview(true)}
-            className="rounded-2xl border border-slate-700 px-5 py-3 font-semibold text-slate-300 hover:border-cyan-400"
-          >
-            무료 체험으로 HTML 생성
-          </button>
           {previewHtml && (
             <button
               onClick={() => setModalOpen(true)}
-              className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-900"
+              className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 hover:border-slate-400"
             >
               <span className="flex items-center gap-2">
                 <Eye className="w-4 h-4" />
@@ -419,22 +400,11 @@ export default function Dashboard() {
           {generateResult && (
             <button
               onClick={handleDownloadAll}
-              className="rounded-2xl px-5 py-3 text-sm font-semibold bg-amber-400 text-slate-900"
+              className="rounded-2xl px-5 py-3 text-sm font-semibold bg-emerald-500 text-white"
             >
-              HTML 및 이미지 다운로드
+              다운로드
             </button>
           )}
-          <button
-            onClick={handleDownloadAssets}
-            disabled={imageStatus !== "completed"}
-            className={`rounded-2xl px-5 py-3 text-sm font-semibold ${
-              imageStatus === "completed"
-                ? "bg-emerald-500 text-slate-950"
-                : "bg-slate-800 text-slate-500 cursor-not-allowed"
-            }`}
-          >
-            {imageStatus === "processing" ? "이미지 생성 중..." : "HTML 및 이미지 다운로드 (모달)"}
-          </button>
         </div>
         <p className="text-xs text-slate-500">
           HTML 복사는 모달에서 복사 버튼을 이용하세요.{" "}

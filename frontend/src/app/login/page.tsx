@@ -44,11 +44,17 @@ export default function AuthPage() {
 
       if (isLogin) {
         const token = response.data.access_token;
-        const storedName = localStorage.getItem("userName") || formData.name || formData.email;
+        const storedName =
+          localStorage.getItem("displayName") ||
+          localStorage.getItem("userName") ||
+          formData.name ||
+          formData.email;
         auth.login(token, storedName);
         router.push("/dashboard");
       } else {
-        localStorage.setItem("userName", formData.name || formData.email);
+        const name = formData.name || formData.email;
+        localStorage.setItem("displayName", name);
+        localStorage.setItem("userName", name);
         alert("🎉 회원가입 성공! 로그인해주세요.");
         setIsLogin(true);
         setAgreed(false);
