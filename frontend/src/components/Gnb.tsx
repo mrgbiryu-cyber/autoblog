@@ -18,7 +18,7 @@ const subMenu = [
 
 export default function Gnb() {
   const pathname = usePathname();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, logout } = useAuth();
   const isDashboardSection = pathname?.startsWith("/dashboard");
   const showSubMenu = isAuthenticated && isDashboardSection;
   const items = showSubMenu ? subMenu : mainMenu;
@@ -37,12 +37,29 @@ export default function Gnb() {
               {item.label}
             </Link>
           ))}
-          <Link
-            href={authHref}
-            className="rounded-full border border-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.4em] text-slate-900 hover:bg-slate-900 hover:text-white transition"
-          >
-            {authLabel}
-          </Link>
+          {isAuthenticated ? (
+            <>
+              <Link
+                href="/dashboard"
+                className="rounded-full border border-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.4em] text-slate-900 hover:bg-slate-900 hover:text-white transition"
+              >
+                대시보드
+              </Link>
+              <button
+                onClick={logout}
+                className="rounded-full border border-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.4em] text-slate-900 hover:bg-slate-900 hover:text-white transition"
+              >
+                로그아웃
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              className="rounded-full border border-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.4em] text-slate-900 hover:bg-slate-900 hover:text-white transition"
+            >
+              로그인
+            </Link>
+          )}
         </div>
       </div>
     </nav>

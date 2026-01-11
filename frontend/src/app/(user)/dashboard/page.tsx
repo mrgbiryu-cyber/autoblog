@@ -183,6 +183,20 @@ export default function Dashboard() {
     }
   };
 
+  const handleDeleteBlog = async (id: number) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/blogs/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        await fetchBlogList();
+        setStatusMessages((prev) => [...prev, "블로그가 삭제되었습니다."]);
+      }
+    } catch (error) {
+      console.warn("삭제 실패", error);
+    }
+  };
+
   useEffect(() => {
     const fetchPosts = async () => {
       try {
@@ -424,30 +438,39 @@ export default function Dashboard() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {blogs.map((blog) => (
               <div key={blog.id} className="relative rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-1">
-                <button
-                  onClick={() => openBlogModal("edit", blog)}
-                  className="absolute right-3 top-3 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600"
-                >
-                  수정
-                </button>
+                <div className="absolute right-3 top-3 flex gap-2">
+                  <button
+                    onClick={() => openBlogModal("edit", blog)}
+                    className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 border border-slate-200 rounded-full px-3 py-1 hover:bg-slate-100"
+                  >
+                    수정
+                  </button>
+                  <button
+                    onClick={() => handleDeleteBlog(blog.id)}
+                    className="text-xs font-semibold uppercase tracking-[0.3em] text-red-500 border border-red-200 rounded-full px-3 py-1 hover:bg-red-50"
+                  >
+                    삭제
+                  </button>
+                </div>
                 <p className="text-xs text-slate-500 uppercase tracking-[0.2em]">{blog.platform_type}</p>
                 <h3 className="text-lg font-semibold text-slate-900">{blog.alias || "블로그 이름 없음"}</h3>
                 <p className="text-xs text-slate-500 truncate">{blog.blog_url}</p>
                 <p className="text-xs text-slate-500">등록 ID: {blog.blog_id}</p>
               </div>
             ))}
-            {Array.from({ length: Math.max(0, TOTAL_BLOG_SLOTS - blogs.length) }).map((_, idx) => (
-              <button
-                key={`slot-${idx}`}
-                onClick={() => openBlogModal("create")}
-                className="rounded-2xl border-2 border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 hover:border-slate-900 hover:text-slate-900 transition"
-              >
-                <div className="mx-auto mb-2 h-16 w-16 rounded-full border border-slate-300 bg-[url('/image_16d3ac.png')] bg-cover bg-center" />
-                + 등록된 블로그가 없습니다
-                <br />
-                클릭하여 추가
-              </button>
-            ))}
+            {blogs.length === 0 &&
+              Array.from({ length: TOTAL_BLOG_SLOTS }).map((_, idx) => (
+                <button
+                  key={`slot-${idx}`}
+                  onClick={() => openBlogModal("create")}
+                  className="rounded-2xl border-2 border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 hover:border-slate-900 hover:text-slate-900 transition"
+                >
+                  <div className="mx-auto mb-2 h-16 w-16 rounded-full border border-slate-300 bg-[url('/image_16d3ac.png')] bg-cover bg-center" />
+                  + 등록된 블로그가 없습니다
+                  <br />
+                  클릭하여 추가
+                </button>
+              ))}
           </div>
         </section>
 
