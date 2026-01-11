@@ -39,7 +39,7 @@ def resolve_workflow_path() -> str:
     LOGGER.warning("Workflow file missing. Creating default workflow at %s", target)
     # repo에 포함된 기본 워크플로우를 사용(없으면 최소 템플릿 생성)
     default = {
-        "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "v1-5-pruned-emaonly.safetensors"}},
+        "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"}},
         "2": {"class_type": "EmptyLatentImage", "inputs": {"width": 512, "height": 512, "batch_size": 1}},
         "3": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["1", 1], "text": "AI marketing automation"}},
         "4": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["1", 1], "text": "blurry, low quality"}},
