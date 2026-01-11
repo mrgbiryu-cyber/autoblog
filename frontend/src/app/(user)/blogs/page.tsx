@@ -1,3 +1,5 @@
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -17,7 +19,7 @@ export default function BlogManagePage() {
 
   const fetchBlogs = async () => {
     try {
-      const res = await axios.get("http://127.0.0.1:8000/api/v1/blogs/");
+      const res = await axios.get(`${API_BASE_URL}/api/v1/blogs/`);
       setBlogs(res.data);
     } catch (err) {
       console.error(err);
@@ -30,7 +32,7 @@ export default function BlogManagePage() {
 
   const handleAddBlog = async () => {
     try {
-      await axios.post("http://127.0.0.1:8000/api/v1/blogs/", newBlog);
+      await axios.post(`${API_BASE_URL}/api/v1/blogs/`, newBlog);
       alert("블로그가 추가되었습니다.");
       setIsAdding(false);
       setNewBlog({ alias: "", platform_type: "Naver", blog_url: "", blog_id: "", api_access_token: "" });

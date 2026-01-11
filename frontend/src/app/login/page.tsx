@@ -1,3 +1,5 @@
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
 "use client";
 
 import { useState } from "react";
@@ -31,7 +33,7 @@ export default function AuthPage() {
 
     try {
       const endpoint = isLogin ? "/login" : "/signup";
-      const url = `http://127.0.0.1:8000/api/v1/auth${endpoint}`;
+      const url = `${API_BASE_URL}/api/v1/auth${endpoint}`;
       const payload = isLogin ? { email: formData.email, password: formData.password } : formData;
       console.log("Sending Request:", url, payload);
 

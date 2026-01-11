@@ -1,3 +1,5 @@
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
 "use client";
 
 import { useState } from "react";
@@ -18,7 +20,7 @@ export default function Dashboard() {
 
     try {
       // 백엔드 호출
-      const response = await axios.post("http://127.0.0.1:8000/generate-post", {
+      const response = await axios.post(`${API_BASE_URL}/generate-post`, {
         category,
         persona,
       });

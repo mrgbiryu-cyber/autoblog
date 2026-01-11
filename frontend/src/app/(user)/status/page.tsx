@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { BarChart3, Clock, Eye, ExternalLink } from "lucide-react";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 export default function StatusPage() {
   const [statusData, setStatusData] = useState<any[]>([]);
@@ -10,7 +11,7 @@ export default function StatusPage() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/v1/posts/status");
+        const res = await axios.get(`${API_BASE_URL}/api/v1/posts/status`);
         setStatusData(res.data);
       } catch (err) {
         console.error("현황 로드 실패", err);
