@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, CalendarClock, CreditCard, Copy, Eye, Loader2, Shield } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
 import {
   fetchBlogAnalysis,
   fetchCreditStatus,
@@ -41,7 +42,7 @@ const PLATFORM_SLOTS = [
 ];
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const TOTAL_BLOG_SLOTS = 4;
+const TOTAL_BLOG_SLOTS = 5;
 export default function Dashboard() {
   const [creditInfo, setCreditInfo] = useState<CreditStatusPayload>({
     current_credit: 0,
@@ -90,6 +91,8 @@ export default function Dashboard() {
     imageTimersRef.current.forEach((timer) => clearTimeout(timer));
     imageTimersRef.current = [];
   };
+
+  const { displayName } = useAuth();
 
   useEffect(() => {
     return () => {
@@ -371,9 +374,9 @@ export default function Dashboard() {
         <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.25em] text-slate-400">AI Marketing Automation Engine</p>
-            <h1 className="text-4xl font-bold flex items-center gap-3">
+        <h1 className="text-4xl font-bold flex items-center gap-3">
               <Bot className="w-10 h-10 text-cyan-400" />
-              형님의 AI 대시보드
+          {displayName ? `${displayName}님의 AI 대시보드` : "고객님의 AI 대시보드"}
             </h1>
             <p className="text-slate-400 mt-1">통합 블로그/플랫폼 일정, 크레딧, SEO 트래킹을 한 눈에.</p>
           </div>

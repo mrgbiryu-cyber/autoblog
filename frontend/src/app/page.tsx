@@ -5,25 +5,6 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900">
       
-      {/* 1. 네비게이션 바 (GNB) */}
-      <nav className="fixed w-full bg-white/80 backdrop-blur-md border-b border-gray-100 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="p-2 bg-blue-600 rounded-lg">
-              <Bot className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-xl font-bold tracking-tight">AI Blog Auto-Pilot</span>
-          </div>
-          <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-gray-600">
-            <a href="#features" className="hover:text-blue-600 transition">기능 소개</a>
-            <a href="#pricing" className="hover:text-blue-600 transition">요금제</a>
-            <Link href="/login" className="px-5 py-2.5 bg-gray-900 text-white rounded-full hover:bg-gray-800 transition">
-              로그인
-            </Link>
-          </div>
-        </div>
-      </nav>
-
       {/* 2. 히어로 섹션 (가장 중요한 첫인상) */}
       <section className="pt-32 pb-20 px-6">
         <div className="max-w-4xl mx-auto text-center space-y-8">
