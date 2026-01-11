@@ -405,51 +405,32 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <section className="grid gap-5 md:grid-cols-3">
-          {PLATFORM_SLOTS.map((slot) => (
-            <div key={slot.platform} className="bg-slate-900 rounded-3xl p-5 border border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">{slot.label}</h3>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{slot.status}</span>
-              </div>
-              <p className="text-sm text-slate-400">{slot.description}</p>
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>스케줄 확인</span>
-                <div className="flex items-center gap-2">
-                  <CalendarClock className="w-4 h-4 text-cyan-400" />
-                  <span>{schedule.frequency === "daily" ? "Daily" : schedule.frequency}</span>
-                </div>
-              </div>
-              <p className="text-xs text-slate-500">다음 예약 시간: {schedule.target_times[0]}</p>
-            </div>
-          ))}
-        </section>
-
         <section className="bg-white/90 rounded-3xl border border-slate-100 p-6 shadow-sm space-y-5">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-slate-900">블로그 관리</h2>
             <button
-              onClick={() => router.push("/blogs")}
+              onClick={() => openBlogModal("create")}
               className="rounded-full border border-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-900 hover:bg-slate-900 hover:text-white transition"
             >
               + 신규 등록
             </button>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {blogs.map((blog) => (
-              <div key={blog.id} className="relative rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-1">
-                <div className="absolute right-3 top-3 flex gap-2">
+              <div key={blog.id} className="relative rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+                <div className="absolute right-3 top-3 flex gap-1">
                   <button
                     onClick={() => openBlogModal("edit", blog)}
-                    className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 border border-slate-200 rounded-full px-3 py-1 hover:bg-slate-100"
+                    className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:border-slate-900"
                   >
-                    수정
+                    <span className="sr-only">수정</span>
+                    ⚙️
                   </button>
                   <button
                     onClick={() => handleDeleteBlog(blog.id)}
-                    className="text-xs font-semibold uppercase tracking-[0.3em] text-red-500 border border-red-200 rounded-full px-3 py-1 hover:bg-red-50"
+                    className="rounded-full border border-red-200 bg-white px-2 py-1 text-xs text-red-600 hover:border-red-500"
                   >
-                    삭제
+                    ✕
                   </button>
                 </div>
                 <p className="text-xs text-slate-500 uppercase tracking-[0.2em]">{blog.platform_type}</p>
@@ -458,19 +439,20 @@ export default function Dashboard() {
                 <p className="text-xs text-slate-500">등록 ID: {blog.blog_id}</p>
               </div>
             ))}
-            {blogs.length === 0 &&
-              Array.from({ length: TOTAL_BLOG_SLOTS }).map((_, idx) => (
-                <button
-                  key={`slot-${idx}`}
-                  onClick={() => openBlogModal("create")}
-                  className="rounded-2xl border-2 border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 hover:border-slate-900 hover:text-slate-900 transition"
-                >
-                  <div className="mx-auto mb-2 h-16 w-16 rounded-full border border-slate-300 bg-[url('/image_16d3ac.png')] bg-cover bg-center" />
-                  + 등록된 블로그가 없습니다
-                  <br />
-                  클릭하여 추가
-                </button>
-              ))}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {Array.from({ length: TOTAL_BLOG_SLOTS - blogs.length }).map((_, idx) => (
+              <button
+                key={`slot-${idx}`}
+                onClick={() => openBlogModal("create")}
+                className="rounded-2xl border-2 border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 hover:border-slate-900 hover:text-slate-900 transition"
+              >
+                <div className="mx-auto mb-2 h-16 w-16 rounded-full border border-slate-300 bg-[url('/image_16d3ac.png')] bg-cover bg-center" />
+                + 아직 등록된 블로그가 없습니다
+                <br />
+                클릭하여 추가
+              </button>
+            ))}
           </div>
         </section>
 
