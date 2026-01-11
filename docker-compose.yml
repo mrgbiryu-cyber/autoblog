@@ -9,6 +9,6 @@ services:
       - "7474:7474" # HTTP 브라우저 접속 (http://localhost:7474)
       - "7687:7687" # Bolt 포트 (앱 연결용)
     environment:
-      - NEO4J_AUTH=mrgbiryu/!@ssw5740  # ID: mrg / PW: !@ssw5740 (변경 가능)
+      - NEO4J_AUTH=neo4j/!@ssw5740  # ID: mrg / PW: !@ssw5740 (변경 가능)
     volumes:
       - ./neo4j_data:/data
