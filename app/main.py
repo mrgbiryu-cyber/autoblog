@@ -18,10 +18,16 @@ from app.agents.publisher import PublisherAgent
 
 app = FastAPI(title="Anti-Gravity Blog Engine")
 
-# [추가2] CORS 미들웨어 설정 (이걸 추가해야 프론트에서 접속 가능)
+# [추가2] CORS 미들웨어 설정 (프론트 배포/로컬 모두 지원하도록 env로 제어)
+# 예)
+# - CORS_ALLOW_ORIGINS="http://localhost:3000,https://your-frontend-domain.com"
+# - CORS_ALLOW_ORIGIN_REGEX="https?://.*\\.your-frontend-domain\\.com"
+cors_allow_origins = [o.strip() for o in os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
+cors_allow_origin_regex = os.getenv("CORS_ALLOW_ORIGIN_REGEX") or None
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=cors_allow_origins,
+    allow_origin_regex=cors_allow_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
