@@ -39,6 +39,16 @@ class BlogResponse(BaseModel):
     alias: str  # [추가]
     platform_type: str
     blog_url: str
+    blog_id: str | None = None
+    api_key_data: dict | None = None
+
+    # 블로그별 저장 설정
+    interest_topic: str | None = None
+    persona: str | None = None
+    default_category: str | None = None
+    custom_prompt: str | None = None
+    word_range: dict | None = None
+    image_count: int | None = None
 
     class Config:
         from_attributes = True

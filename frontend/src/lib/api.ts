@@ -49,6 +49,10 @@ export type PreviewResponse = {
   summary: string;
   credits_required?: number;
   images?: string[];
+  status?: string;
+  image_total?: number;
+  post_id?: number;
+  image_error?: string | null;
 };
 
 export async function fetchCreditStatus(): Promise<CreditStatusPayload> {
@@ -133,23 +137,22 @@ export async function fetchKeywordTracking(): Promise<KeywordTrackerRow[]> {
 }
 
 export async function generatePreviewHtml(body: PreviewRequest): Promise<PreviewResponse> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/posts/preview`, {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      throw new Error("Preview API error");
+  const response = await fetch(`${API_BASE_URL}/api/v1/posts/preview`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    let detail = "Preview API error";
+    try {
+      const err = await response.json();
+      detail = err?.detail || detail;
+    } catch {
+      // ignore
     }
-    return await response.json();
-  } catch (error) {
-    console.warn("generatePreviewHtml fallback triggered", error);
-    return {
-      html: `<h1>${body.persona}가 작성한 ${body.topic}</h1><p>이 콘텐츠는 엔진이 생성한 테스트 결과입니다.</p>`,
-      summary: "기본 미리보기 텍스트",
-    };
+    throw new Error(detail);
   }
+  return await response.json();
 }
 
 export type BlogAnalysisResponse = {

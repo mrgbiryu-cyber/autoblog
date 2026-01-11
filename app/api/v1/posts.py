@@ -117,28 +117,36 @@ async def generate_post_with_images(
     db.commit()
 
     image_urls: list[str] = []
+    image_error: str | None = None
     img_prompts = payload.img_prompts or []
     for i in range(payload.image_count):
         prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} 이미지 프롬프트 #{i + 1}"
-        image_bytes = await generate_image_sync(WORKFLOW_PATH, prompt)
-        os.makedirs("generated_images", exist_ok=True)
-        filename = f"post_{new_post.id}_img_{i + 1}.png"
-        path = os.path.join("generated_images", filename)
-        with open(path, "wb") as fp:
-            fp.write(image_bytes)
-        image_urls.append(f"/generated_images/{filename}")
+        try:
+            image_bytes = await generate_image_sync(WORKFLOW_PATH, prompt)
+            os.makedirs("generated_images", exist_ok=True)
+            filename = f"post_{new_post.id}_img_{i + 1}.png"
+            path = os.path.join("generated_images", filename)
+            with open(path, "wb") as fp:
+                fp.write(image_bytes)
+            image_urls.append(f"/generated_images/{filename}")
+        except Exception as exc:
+            # ComfyUI 미연결/네트워크 오류 등으로 이미지 생성이 실패해도 HTML은 제공해야 합니다.
+            image_error = f"이미지 생성 실패: {exc}"
+            LOGGER.warning("Image generation failed; returning HTML only. (%s)", exc)
+            break
 
     new_post.image_paths = image_urls
     db.commit()
 
     return {
-        "status": "completed",
+        "status": "completed" if not image_error else "image_failed",
         "image_total": payload.image_count,
         "post_id": new_post.id,
         "html": html_result["html"],
         "summary": html_result.get("summary", ""),
         "credits_required": credits_needed,
         "images": image_urls,
+        "image_error": image_error,
     }
 
 

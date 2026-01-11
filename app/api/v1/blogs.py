@@ -19,6 +19,14 @@ class BlogUpdate(BaseModel):
     blog_id: str | None = None
     api_access_token: str | None = None
 
+    # blog-specific settings
+    interest_topic: str | None = None
+    persona: str | None = None
+    default_category: str | None = None
+    custom_prompt: str | None = None
+    word_range: dict | None = None
+    image_count: int | None = None
+
 
 class BlogAnalysisRequest(BaseModel):
     blog_id: int | None = None
@@ -116,6 +124,20 @@ def update_blog(
         blog.blog_url = payload.blog_url
     if payload.blog_id is not None:
         blog.blog_id = payload.blog_id
+
+    # Blog-specific AI settings (per blog)
+    if payload.interest_topic is not None:
+        blog.interest_topic = payload.interest_topic
+    if payload.persona is not None:
+        blog.persona = payload.persona
+    if payload.default_category is not None:
+        blog.default_category = payload.default_category
+    if payload.custom_prompt is not None:
+        blog.custom_prompt = payload.custom_prompt
+    if payload.word_range is not None:
+        blog.word_range = payload.word_range
+    if payload.image_count is not None:
+        blog.image_count = payload.image_count
 
     # 토큰은 WordPress/Tistory일 때만 저장(그 외는 빈 값)
     if payload.api_access_token is not None:

@@ -67,6 +67,42 @@ def _extract_text(resp: Any) -> str:
     return str(resp)
 
 
+def _try_parse_json_object(raw: str) -> dict | None:
+    """
+    Gemini가 다음과 같은 형태로 응답하는 경우를 최대한 복구합니다.
+    - ```json ... ``` 코드펜스 포함
+    - 앞/뒤 설명 텍스트가 붙어 있음
+    - JSON 오브젝트가 문자열로 반환됨
+    """
+    if not raw:
+        return None
+
+    text = raw.strip()
+
+    # 코드펜스 제거
+    if text.startswith("```"):
+        # ```json\n{...}\n``` 또는 ```\n{...}\n```
+        parts = text.split("```")
+        # parts: ["", "json\n{...}\n", ""]
+        if len(parts) >= 2:
+            text = parts[1].strip()
+            if text.lower().startswith("json"):
+                text = text[4:].strip()
+
+    # 첫 JSON object로 보이는 구간만 추출
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        return None
+
+    candidate = text[start : end + 1].strip()
+    try:
+        parsed = json.loads(candidate)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        return None
+
+
 async def _call_prompt(prompt: str) -> str:
     _require_gemini()
 
@@ -96,15 +132,27 @@ async def analyze_blog(blog_url: str, alias: str | None) -> dict:
     )
 
     raw = await _call_prompt(prompt)
-    try:
-        data = json.loads(raw)
+
+    data = _try_parse_json_object(raw)
+    if data:
         return {
-            "category": data.get("category", description),
-            "prompt": data.get("prompt", f"{description}에 맞는 SEO 글을 작성하세요."),
+            "category": str(data.get("category") or description).strip(),
+            "prompt": str(data.get("prompt") or f"{description}에 맞는 SEO 글을 작성하세요.").strip(),
         }
-    except json.JSONDecodeError:
-        LOGGER.warning("Gemini analyze response not JSON; using fallback.")
-        return {"category": description, "prompt": raw.strip()}
+
+    # 그래도 실패하면 raw가 JSON 문자열일 수도 있으니 한 번 더 시도
+    try:
+        data2 = json.loads(raw.strip())
+        if isinstance(data2, dict):
+            return {
+                "category": str(data2.get("category") or description).strip(),
+                "prompt": str(data2.get("prompt") or f"{description}에 맞는 SEO 글을 작성하세요.").strip(),
+            }
+    except Exception:
+        pass
+
+    LOGGER.warning("Gemini analyze response not JSON; using fallback.")
+    return {"category": description, "prompt": raw.strip()}
 
 
 async def generate_html(
@@ -134,10 +182,18 @@ async def generate_html(
     )
 
     raw = await _call_prompt(full_prompt)
+
+    data = _try_parse_json_object(raw)
+    if data:
+        return {"html": str(data.get("html") or raw), "summary": str(data.get("summary") or "")}
+
     try:
-        data = json.loads(raw)
-        return {"html": data.get("html", raw), "summary": data.get("summary", "")}
-    except json.JSONDecodeError:
-        LOGGER.warning("Gemini HTML response not JSON; returning raw text.")
-        return {"html": raw, "summary": raw[:120]}
+        data2 = json.loads(raw.strip())
+        if isinstance(data2, dict):
+            return {"html": str(data2.get("html") or raw), "summary": str(data2.get("summary") or "")}
+    except Exception:
+        pass
+
+    LOGGER.warning("Gemini HTML response not JSON; returning raw text.")
+    return {"html": raw, "summary": raw[:120]}
 

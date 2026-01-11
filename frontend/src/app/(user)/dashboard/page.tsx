@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -19,7 +19,8 @@ import {
   PreviewRequest,
   PreviewResponse,
 } from "../../../lib/api";
-import { updateBlogConfig } from "@/services/settingsApi";
+// NOTE: 기존에는 유저 공통 설정(`/config/blog-settings`)에 저장했지만,
+// 현재 UX 요구사항은 "블로그별"로 category/prompt/persona/wordRange/imageCount가 저장되어야 합니다.
 
 // 환경변수를 못 읽더라도 무조건 서버를 바라보게 합니다.
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://34.64.50.56";
@@ -85,17 +86,20 @@ export default function Dashboard() {
       setPersonaText("전문 SEO 마케터처럼");
       setWordRange({ min: 800, max: 1200 });
       setPreviewImageCount(3);
+      setAnalysisCategory("");
       setAnalysisPrompt("");
       return;
     }
 
-    setTopic(selectedBlog.default_category ?? selectedBlog.alias ?? "AI Marketing Automation");
+    // topic은 "관심 주제"이며 카테고리와 분리됩니다.
+    setTopic(selectedBlog.interest_topic ?? topic ?? "AI Marketing Automation");
     setPersonaText(selectedBlog.persona ?? "전문 SEO 마케터처럼");
     setWordRange({
       min: selectedBlog.word_range?.min ?? 800,
       max: selectedBlog.word_range?.max ?? 1200,
     });
     setPreviewImageCount(selectedBlog.image_count ?? 3);
+    setAnalysisCategory(selectedBlog.default_category ?? "");
     setAnalysisPrompt(selectedBlog.custom_prompt ?? "");
   }, [selectedBlog]);
 
@@ -112,7 +116,11 @@ export default function Dashboard() {
     };
   }, []);
 
-  const BlogSettingsPanel = () => {
+  // NOTE: Dashboard 컴포넌트 내부에서 BlogSettingsPanel을 "컴포넌트"로 정의하고 (<BlogSettingsPanel />)
+  // 렌더하면, 렌더링마다 함수 레퍼런스가 바뀌면서 React가 패널을 언마운트/리마운트할 수 있습니다.
+  // 그 결과 입력 중 포커스가 한 글자마다 튕기는 현상이 발생할 수 있어
+  // 컴포넌트가 아니라 "렌더 함수"로 호출해 DOM을 유지합니다.
+  const renderBlogSettingsPanel = () => {
     const blog = selectedBlog;
     const displayAlias = blog?.alias || panelForm.alias || "새 블로그 등록";
     const displayUrl = blog?.blog_url || panelForm.blog_url || "등록 대기";
@@ -122,7 +130,7 @@ export default function Dashboard() {
 
     const hasAnalysis = Boolean(analysisCategory || analysisPrompt);
 
-    return (
+  return (
       <div className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 space-y-6 text-slate-100">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -198,8 +206,8 @@ export default function Dashboard() {
           </label>
           <label className="space-y-2 text-sm text-slate-300">
             페르소나 입력
-            <input
-              type="text"
+              <input
+                type="text"
               className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
               placeholder="예: 전문 SEO 마케터처럼 톤을 맞춰주세요"
               value={personaText}
@@ -338,10 +346,10 @@ export default function Dashboard() {
 
             <label className="space-y-2 text-sm text-slate-300">
               타겟 시간
-              <div className="space-y-2">
+            <div className="space-y-2">
                 {schedule.target_times.map((time: string, index: number) => (
                   <div key={`${time}-${index}`} className="flex gap-2 items-center">
-                    <input
+              <input
                       type="time"
                       className="flex-1 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2 text-slate-100 focus:border-cyan-400 focus:outline-none"
                       value={time}
@@ -363,13 +371,13 @@ export default function Dashboard() {
                 >
                   시간 추가
                 </button>
-              </div>
+            </div>
             </label>
           </div>
-
+          
           <div className="grid grid-cols-2 gap-2 text-xs text-slate-300 md:grid-cols-7">
             {WEEKDAYS.map((day) => (
-              <button
+          <button
                 key={day}
                 type="button"
                 onClick={() => toggleDay(day)}
@@ -453,9 +461,9 @@ export default function Dashboard() {
                 이미지 #{card.id} {card.src ? "완료" : "생성 중..."}
               </p>
             </div>
-          ))}
-        </div>
-      </div>
+              ))}
+            </div>
+          </div>
     );
   };
  
@@ -465,10 +473,11 @@ export default function Dashboard() {
     [creditInfo]
   );
   const creditEstimate = useMemo(() => {
-    const base = 5;
-    const imageCost = previewImageCount * 1;
-    const textCost = Math.max(0, Math.ceil(Math.max(0, wordRange.max - 1000) / 500));
-    return base + imageCost + textCost;
+    // 백엔드 credit_service와 동일한 계산식:
+    // image: 2 credits / image, text: floor(maxWords / 1000)
+    const imageCredits = previewImageCount * 2;
+    const wordCredits = Math.floor(wordRange.max / 1000);
+    return imageCredits + wordCredits;
   }, [previewImageCount, wordRange]);
 
   const fetchBlogList = async () => {
@@ -609,8 +618,44 @@ export default function Dashboard() {
       await navigator.clipboard.writeText(previewHtml);
       setStatusMessages((prev: string[]) => [...prev, "HTML이 클립보드에 복사되었습니다."]);
     } catch (error) {
-      setStatusMessages((prev: string[]) => [...prev, "클립보드 복사가 지원되지 않는 환경입니다."]);
+      // HTTP 환경 등에서 navigator.clipboard가 막히는 경우 fallback
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = previewHtml;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        textarea.style.top = "0";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(textarea);
+        setStatusMessages((prev: string[]) => [...prev, ok ? "HTML이 클립보드에 복사되었습니다." : "클립보드 복사에 실패했습니다."]);
+      } catch {
+        setStatusMessages((prev: string[]) => [...prev, "클립보드 복사가 지원되지 않는 환경입니다."]);
+      }
     }
+  };
+
+  const normalizeAnalysisPrompt = (maybeJson: string) => {
+    const text = (maybeJson || "").trim();
+    if (!text) return "";
+    // prompt에 JSON 전체가 박히는 케이스를 복구
+    try {
+      const stripped = text.replace(/^```json/i, "```").replace(/^```/i, "```");
+      const start = stripped.indexOf("{");
+      const end = stripped.lastIndexOf("}");
+      if (start !== -1 && end !== -1 && end > start) {
+        const obj = JSON.parse(stripped.slice(start, end + 1));
+        if (obj && typeof obj === "object") {
+          const p = (obj.prompt || obj.custom_prompt || "").toString();
+          if (p.trim()) return p.trim();
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return text;
   };
 
   const handleAnalyze = async () => {
@@ -625,7 +670,7 @@ export default function Dashboard() {
           : {}
       );
       setAnalysisCategory(result.category);
-      setAnalysisPrompt(result.prompt);
+      setAnalysisPrompt(normalizeAnalysisPrompt(result.prompt));
       setAnalysisButtonText("다시 분석하기");
       setStatusMessages((prev: string[]) => [...prev, "블로그 분석 결과를 적용했습니다."]);
     } catch (error) {
@@ -661,6 +706,25 @@ export default function Dashboard() {
         }
         const created = await createRes.json();
         blogId = created.id;
+
+        // 생성 직후 블로그별 설정 저장(POST 스키마를 깨지 않기 위해 PUT로 한번 더 저장)
+        const settingsRes = await fetch(`${API_BASE_URL}/api/v1/blogs/${created.id}`, {
+          method: "PUT",
+          headers: buildHeaders(),
+          body: JSON.stringify({
+            interest_topic: topic,
+            persona: personaText,
+            default_category: analysisCategory || undefined,
+            custom_prompt: analysisPrompt || undefined,
+            word_range: { min: wordRange.min, max: wordRange.max },
+            image_count: previewImageCount,
+          }),
+        });
+        if (!settingsRes.ok) {
+          const body = await settingsRes.json().catch(() => ({}));
+          throw new Error(body.detail || "블로그 설정 저장 실패");
+        }
+
         setPanelMode("edit");
         setSelectedBlogId(created.id);
         setSelectedCreateSlotIdx(null);
@@ -682,6 +746,13 @@ export default function Dashboard() {
             blog_url: panelForm.blog_url,
             blog_id: panelForm.blog_id,
             api_access_token: panelForm.api_access_token || undefined,
+            // 블로그별 설정 저장
+            interest_topic: topic,
+            persona: personaText,
+            default_category: analysisCategory || undefined,
+            custom_prompt: analysisPrompt || undefined,
+            word_range: { min: wordRange.min, max: wordRange.max },
+            image_count: previewImageCount,
           }),
         });
         if (!updateRes.ok) {
@@ -692,15 +763,7 @@ export default function Dashboard() {
         await fetchBlogList();
       }
 
-      // 2) 지식 기반 AI 설정 저장 (유저 공통 설정 DB)
-      await updateBlogConfig({
-        category: topic,
-        custom_prompt: analysisPrompt,
-        post_length: resolvePostLength(wordRange.max),
-        image_count: previewImageCount,
-      });
-
-      // 3) 스케줄링 저장 (유저 공통 설정 DB)
+      // 2) 스케줄링 저장 (유저 공통 설정 DB)
       await saveScheduleConfig(schedule);
 
       setStatusMessages((prev: string[]) => [...prev, "설정이 저장되었습니다."]);
@@ -725,10 +788,8 @@ export default function Dashboard() {
     });
   };
 
-  useEffect(() => {
-    handleAnalyze();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // NOTE: 카드 열 때마다 자동 분석이 돌면 저장된 값을 덮어쓰고 UX가 나빠집니다.
+  // 분석은 사용자가 "분석하기" 버튼을 눌렀을 때만 실행합니다.
 
   const handleDownloadAssets = () => {
     if (!previewHtml) return;
@@ -889,7 +950,7 @@ export default function Dashboard() {
                     >
                       ✕
                     </button>
-                  </div>
+            </div>
                   <p className="text-xs text-slate-400 uppercase tracking-[0.2em]">{blog.platform_type}</p>
                   <h3 className="text-lg font-semibold text-white">{blog.alias || "블로그 이름 없음"}</h3>
                   <p className="text-xs text-slate-400 truncate">{blog.blog_url}</p>
@@ -898,12 +959,12 @@ export default function Dashboard() {
 
                 {selectedBlogId === blog.id && (
                   <div className="col-span-full rounded-3xl border border-slate-800 bg-slate-950/30 p-3">
-                    <BlogSettingsPanel />
+                    {renderBlogSettingsPanel()}
                   </div>
                 )}
               </Fragment>
             ))}
-          </div>
+              </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {Array.from({ length: Math.max(0, TOTAL_BLOG_SLOTS - blogs.length) }).map((_, idx) => (
@@ -920,12 +981,12 @@ export default function Dashboard() {
 
                 {panelMode === "create" && selectedBlogId === null && selectedCreateSlotIdx === idx && (
                   <div className="col-span-full rounded-3xl border border-slate-800 bg-slate-950/30 p-3">
-                    <BlogSettingsPanel />
+                    {renderBlogSettingsPanel()}
                   </div>
                 )}
               </Fragment>
-            ))}
-          </div>
+                        ))}
+                    </div>
         </section>
 
         <section className="bg-slate-900 rounded-3xl p-6 border border-slate-800">
@@ -985,7 +1046,7 @@ export default function Dashboard() {
             <Link href="/status" className="text-xs uppercase tracking-[0.3em] text-slate-400 hover:text-white transition">
               전체 보기
             </Link>
-          </div>
+                 </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm text-slate-200">
               <thead className="text-xs text-slate-400">
@@ -1049,7 +1110,7 @@ export default function Dashboard() {
                 )}
               </tbody>
             </table>
-          </div>
+                    </div>
         </section>
 
         <section className="bg-slate-900 rounded-3xl p-6 border border-slate-800 space-y-3">
@@ -1065,9 +1126,9 @@ export default function Dashboard() {
                 </p>
               ))
             )}
-          </div>
+                 </div>
         </section>
-      </div>
+              </div>
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6">
@@ -1089,10 +1150,10 @@ export default function Dashboard() {
                 <Copy className="h-4 w-4" />
                 HTML 복사
               </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }

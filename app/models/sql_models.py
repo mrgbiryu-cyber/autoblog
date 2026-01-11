@@ -113,6 +113,14 @@ class Blog(Base):
     api_key_data = Column(JSON, nullable=True)
     status = Column(String, nullable=True, default="ACTIVE")
 
+    # Blog-specific AI settings (per-blog 저장)
+    interest_topic = Column(String, nullable=True)         # 사용자가 입력한 관심 주제
+    persona = Column(String, nullable=True)                # 입력형 페르소나
+    default_category = Column(String, nullable=True)       # 분석된/저장된 카테고리
+    custom_prompt = Column(Text, nullable=True)            # 사용자가 수정한 작성 지시 프롬프트
+    word_range = Column(JSON, nullable=True)               # {"min": 800, "max": 1200}
+    image_count = Column(Integer, nullable=True)           # 블로그별 이미지 개수
+
     created_at = Column(DateTime(timezone=True), default=func.now())
     posts = relationship("Post", back_populates="blog")
 
