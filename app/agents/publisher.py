@@ -22,16 +22,39 @@ class PublisherAgent:
         """
         print(f"🚀 Publisher Agent Started for: {draft.get('final_title')}")
 
-        # 1. 포맷 변환 (Markdown -> HTML)
-        html_content = self._convert_to_html(draft.get('content', ''))
+        # 1. 포맷 변환 (Markdown -> HTML body)
+        body_html = self._convert_to_html(draft.get('content', ''))
+
+        # 1.5 메타 태그 + 본문만 포함하는 HTML 문서 생성
+        title = draft.get("final_title") or "Untitled"
+        meta_description = draft.get("meta_description") or ""
+        meta_keywords = draft.get("meta_keywords") or []
+        if not isinstance(meta_keywords, list):
+            meta_keywords = [str(meta_keywords)]
+        kw = ", ".join([str(k).strip() for k in meta_keywords if str(k).strip()])
+        html_content = (
+            "<!doctype html>\n"
+            "<html lang=\"ko\">\n"
+            "<head>\n"
+            "  <meta charset=\"utf-8\" />\n"
+            f"  <title>{title}</title>\n"
+            f"  <meta name=\"description\" content=\"{meta_description}\" />\n"
+            f"  <meta name=\"keywords\" content=\"{kw}\" />\n"
+            "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n"
+            "</head>\n"
+            "<body>\n"
+            f"{body_html}\n"
+            "</body>\n"
+            "</html>"
+        )
         
         # 2. 이미지 세탁 (Exif 제거 시뮬레이션)
         # 실제로는 생성된 이미지 경로를 받아 처리하지만, 여기선 더미 경로로 테스트
         dummy_images = ["image_01.jpg", "image_02.png"] 
         processed_images = self._process_images(dummy_images)
 
-        # 3. 애드온: 수익화 코드 삽입 (AdSense)
-        html_content = self._inject_ads(html_content, blog_config.get("ad_client_id"))
+        # NOTE: Reviewer 요구사항에 따라 최종 HTML은 메타+본문만 포함해야 하므로
+        # 광고 삽입은 기본적으로 비활성화합니다.
 
         # 4. 배포 시뮬레이션
         platform = blog_config.get("platform_type", "Naver")
@@ -47,9 +70,10 @@ class PublisherAgent:
             "status": "published",
             "url": post_url,
             "published_at": datetime.now().isoformat(),
+            "html": html_content,
             "addons": {
                 "image_processed_count": len(processed_images),
-                "ad_injected": True,
+                "ad_injected": False,
                 "indexing_status": indexing_result
             }
         }

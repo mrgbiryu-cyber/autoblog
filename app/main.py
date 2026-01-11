@@ -15,6 +15,7 @@ from app.agents.knowledge import KnowledgeAgent
 from app.agents.writer import WriterAgent
 from app.agents.seo_analyst import SEOAgent
 from app.agents.publisher import PublisherAgent
+from app.agents.reviewer import ReviewerAgent
 
 app = FastAPI(title="Anti-Gravity Blog Engine")
 
@@ -68,6 +69,7 @@ async def generate_post_workflow(request: TopicRequest):
     agent2 = WriterAgent()
     agent3 = SEOAgent()
     agent4 = PublisherAgent()
+    reviewer = ReviewerAgent()
 
     try:
         # Step 1: 주제 선정 (Agent 1)
@@ -78,6 +80,14 @@ async def generate_post_workflow(request: TopicRequest):
         
         # Step 2: 초안 작성 (Agent 2)
         draft = await agent2.write_content(topic_data, request.persona)
+
+        # Step 2.5: Reviewer 1차 검수 (금칙 문구/이미지 프롬프트 정합성)
+        topic_title = topic_data.get("topic", request.category)
+        review1 = reviewer.review_writer_output(draft, topic_title)
+        if review1.cleaned_content is not None:
+            draft["content"] = review1.cleaned_content
+        if review1.cleaned_image_prompts is not None:
+            draft["image_prompts"] = review1.cleaned_image_prompts
         
         # Step 3: SEO 검수 및 수정 루프 (Agent 3 <-> Agent 2)
         # [핵심] 여기가 형님이 찾으시던 '재수정 로직'입니다.
@@ -104,6 +114,13 @@ async def generate_post_workflow(request: TopicRequest):
         # Step 4: 배포 및 후처리 (Agent 4)
         blog_config = {"platform_type": "Naver", "user_id": request.user_id, "ad_client_id": "demo-client"}
         final_result = await agent4.execute(draft, blog_config)
+
+        # Step 4.5: Reviewer 최종 정제 (HTML에서 금칙 문구/불필요 요소 제거)
+        if isinstance(final_result, dict) and final_result.get("html"):
+            review2 = reviewer.review_final_html(final_result["html"])
+            if review2.cleaned_html:
+                final_result["html"] = review2.cleaned_html
+                final_result["review_issues"] = review2.issues
         
         return {
             "status": "success",

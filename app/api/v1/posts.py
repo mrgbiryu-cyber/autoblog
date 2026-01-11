@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from app.services.credit_service import calculate_required_credits
 from app.services.gemini_service import generate_html
 from app.services.image_service import WORKFLOW_PATH, generate_image_sync, save_image_bytes
+from app.agents.reviewer import sanitize_final_html, validate_and_fix_image_prompts
 import logging
 import os
 from pathlib import Path
@@ -150,11 +151,23 @@ async def generate_post_with_images(
 
     final_prompt = payload.custom_prompt or f"Generate SEO-friendly HTML for {payload.topic} with persona {payload.persona}."
     html_result = await generate_html(payload.topic, payload.persona, final_prompt, payload.word_count_range, payload.image_count)
-    new_post.content = html_result["html"]
+    # Reviewer 최종 정제 (금칙 문구/스크립트 제거 등)
+    cleaned_html, _issues = sanitize_final_html(html_result["html"])
+    html_result["html"] = cleaned_html
+    new_post.content = cleaned_html
+    if html_result.get("title"):
+        new_post.title = str(html_result["title"])
     db.commit()
 
     # TO-BE: 이미지 생성은 백그라운드로 돌리고, HTML은 즉시 반환해 Nginx 504를 방지합니다.
-    img_prompts = payload.img_prompts or []
+    # 이미지 프롬프트 우선순위:
+    # 1) 요청 payload.img_prompts (직접 지정)
+    # 2) Gemini가 반환한 image_prompts (주제 연동)
+    # 3) topic 기반 기본값
+    img_prompts = payload.img_prompts or html_result.get("image_prompts") or []
+    if not isinstance(img_prompts, list):
+        img_prompts = []
+    img_prompts, _img_issues = validate_and_fix_image_prompts(payload.topic, img_prompts)
 
     # 프론트가 스켈레톤을 그릴 수 있도록 미리 URL을 확정해서 반환
     image_urls = [f"/generated_images/post_{new_post.id}_img_{i + 1}.png" for i in range(payload.image_count)]
@@ -162,7 +175,7 @@ async def generate_post_with_images(
     db.commit()
 
     for i in range(payload.image_count):
-        prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} 이미지 프롬프트 #{i + 1}"
+        prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} 고해상도 음식 사진, 자연광, 클로즈업, 리얼리스틱 #{i + 1}"
         background_tasks.add_task(process_image_generation, post_id=new_post.id, index=i + 1, prompt=prompt)
 
     return {

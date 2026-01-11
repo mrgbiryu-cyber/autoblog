@@ -94,17 +94,36 @@ def load_workflow(workflow_path: str) -> dict:
 
 def _inject_prompt(workflow: dict, prompt: str) -> dict:
     """
-    기본 워크플로우의 positive CLIPTextEncode 노드("3")에 prompt를 주입합니다.
+    기본 워크플로우의 텍스트 입력 노드(CLIPTextEncode)에 prompt를 주입합니다.
+    - AS-IS: 노드 id "3" 고정 → 워크플로우가 바뀌면 주입이 실패하거나 무시될 수 있음
+    - TO-BE: "3"이 있으면 우선 사용, 없으면 첫 CLIPTextEncode를 찾아 주입
     """
     wf = json.loads(json.dumps(workflow))  # deep copy
-    node = wf.get("3")
-    if isinstance(node, dict):
+    def set_text(node_id: str) -> bool:
+        node = wf.get(node_id)
+        if not isinstance(node, dict):
+            return False
         inputs = node.get("inputs") or {}
-        if isinstance(inputs, dict):
-            inputs["text"] = prompt
-            node["inputs"] = inputs
-            wf["3"] = node
-    return wf
+        if not isinstance(inputs, dict):
+            return False
+        # CLIPTextEncode 기본 입력 키는 text
+        inputs["text"] = prompt
+        node["inputs"] = inputs
+        wf[node_id] = node
+        return True
+
+    # 1) 기존 워크플로우 구조(노드 "3") 우선
+    if set_text("3"):
+        return wf
+
+    # 2) fallback: 첫 CLIPTextEncode 노드 탐색
+    for node_id, node in wf.items():
+        if isinstance(node, dict) and node.get("class_type") == "CLIPTextEncode":
+            if set_text(str(node_id)):
+                LOGGER.warning("Injected prompt into CLIPTextEncode node %s (fallback path)", node_id)
+                return wf
+
+    raise RuntimeError("No CLIPTextEncode node found in workflow; cannot inject prompt text.")
 
 
 async def _wait_for_image(client: httpx.AsyncClient, prompt_id: str, timeout_s: float = 120.0) -> dict:

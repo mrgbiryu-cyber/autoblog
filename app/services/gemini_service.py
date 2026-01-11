@@ -163,37 +163,103 @@ async def generate_html(
     image_count: int,
 ) -> dict:
     """
-    Generate SEO-optimized HTML snippet based on topic, persona, and custom prompt.
+    Generate SEO-optimized HTML document + metadata + image prompts.
+
+    요구사항:
+    - 본문에는 기획 메모(예: 'SEO를 위한 한마디', '메타 설명 아이디어')가 절대 포함되면 안 됨
+    - 메타 정보는 <head>의 <meta> 태그에만 포함
+    - 이미지 프롬프트는 포스팅 주제에 맞는 동적 프롬프트로 반환 (image_count 개)
     """
     min_words, max_words = word_count_range
     prompt_text = prompt or f"{topic} 주제로 SEO 최적화 HTML을 작성하세요."
 
     full_prompt = (
         "당신은 SEO 전문 콘텐츠 에디터입니다.\n"
-        "다음 입력을 바탕으로 블로그 포스팅을 HTML로 작성하고, JSON으로만 반환하세요.\n"
-        "반드시 다음 형태만 허용됩니다: {\"html\": \"...\", \"summary\": \"...\"}\n\n"
+        "다음 입력을 바탕으로 블로그 포스팅을 생성하되, 결과는 JSON으로만 반환하세요.\n"
+        "중요: 본문(body_html)에는 기획 단계 문구(예: 'SEO를 위한 한마디', '메타 설명 아이디어')를 절대 포함하지 마세요.\n"
+        "메타 설명/키워드/제목은 meta_description/meta_keywords/title 필드로만 제공하고, 본문에는 넣지 마세요.\n"
+        "반드시 다음 형태만 허용됩니다(코드펜스 금지):\n"
+        "{\n"
+        "  \"title\": \"...\",\n"
+        "  \"meta_description\": \"...\",\n"
+        "  \"meta_keywords\": [\"...\"],\n"
+        "  \"summary\": \"...\",\n"
+        "  \"body_html\": \"...\",\n"
+        "  \"image_prompts\": [\"...\"]\n"
+        "}\n\n"
         f"- 주제: {topic}\n"
         f"- 페르소나: {persona}\n"
         f"- 글자수: {min_words}~{max_words}\n"
         f"- 이미지 개수: {image_count}\n"
         f"- 작성 지시: {prompt_text}\n\n"
-        "HTML에는 제목(h1), 소제목(h2/h3), 본문(p), 목록(ul/ol)을 적절히 포함하고,\n"
-        "이미지 위치는 <!-- IMAGE_PLACEHOLDER --> 로 표시하세요.\n"
+        "body_html에는 제목(h1), 소제목(h2/h3), 본문(p), 목록(ul/ol)을 적절히 포함하고,\n"
+        f"이미지 위치는 <!-- IMAGE_PLACEHOLDER_1 --> 부터 <!-- IMAGE_PLACEHOLDER_{image_count} --> 까지 순서대로 포함하세요.\n"
+        f"image_prompts는 반드시 {image_count}개를 생성하고, 요리/사진 등 실제 주제에 맞는 구체적 장면 묘사로 작성하세요.\n"
     )
 
     raw = await _call_prompt(full_prompt)
 
+    def sanitize_body(text: str) -> str:
+        banned = ["SEO를 위한 한마디", "메타 설명 아이디어"]
+        out_lines: list[str] = []
+        for line in (text or "").splitlines():
+            if any(b in line for b in banned):
+                continue
+            out_lines.append(line)
+        return "\n".join(out_lines).strip()
+
+    def build_html(title: str, meta_description: str, meta_keywords: list[str], body_html: str) -> str:
+        kw = ", ".join([k.strip() for k in (meta_keywords or []) if str(k).strip()])
+        body = sanitize_body(body_html)
+        return (
+            "<!doctype html>\n"
+            "<html lang=\"ko\">\n"
+            "<head>\n"
+            "  <meta charset=\"utf-8\" />\n"
+            f"  <title>{title}</title>\n"
+            f"  <meta name=\"description\" content=\"{meta_description}\" />\n"
+            f"  <meta name=\"keywords\" content=\"{kw}\" />\n"
+            "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n"
+            "</head>\n"
+            "<body>\n"
+            f"{body}\n"
+            "</body>\n"
+            "</html>"
+        )
+
     data = _try_parse_json_object(raw)
     if data:
-        return {"html": str(data.get("html") or raw), "summary": str(data.get("summary") or "")}
+        title = str(data.get("title") or topic).strip()
+        meta_description = str(data.get("meta_description") or "").strip()
+        meta_keywords = data.get("meta_keywords") or []
+        if not isinstance(meta_keywords, list):
+            meta_keywords = [str(meta_keywords)]
+        summary = str(data.get("summary") or "").strip()
+        body_html = str(data.get("body_html") or "").strip()
+        image_prompts = data.get("image_prompts") or []
+        if not isinstance(image_prompts, list):
+            image_prompts = []
+        html = build_html(title, meta_description, meta_keywords, body_html)
+        return {"html": html, "summary": summary, "title": title, "image_prompts": image_prompts}
 
     try:
         data2 = json.loads(raw.strip())
         if isinstance(data2, dict):
-            return {"html": str(data2.get("html") or raw), "summary": str(data2.get("summary") or "")}
+            title = str(data2.get("title") or topic).strip()
+            meta_description = str(data2.get("meta_description") or "").strip()
+            meta_keywords = data2.get("meta_keywords") or []
+            if not isinstance(meta_keywords, list):
+                meta_keywords = [str(meta_keywords)]
+            summary = str(data2.get("summary") or "").strip()
+            body_html = str(data2.get("body_html") or "").strip()
+            image_prompts = data2.get("image_prompts") or []
+            if not isinstance(image_prompts, list):
+                image_prompts = []
+            html = build_html(title, meta_description, meta_keywords, body_html)
+            return {"html": html, "summary": summary, "title": title, "image_prompts": image_prompts}
     except Exception:
         pass
 
     LOGGER.warning("Gemini HTML response not JSON; returning raw text.")
-    return {"html": raw, "summary": raw[:120]}
+    return {"html": raw, "summary": raw[:120], "title": topic, "image_prompts": []}
 

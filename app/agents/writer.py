@@ -51,11 +51,15 @@ class WriterAgent:
         1. **Title:** Create a catchy, click-worthy title (different from the topic).
         2. **Structure:** Introduction -> Body (H2, H3) -> Conclusion.
         3. **Format:** Use Markdown. Use bullet points for readability.
-        4. **Image Prompts:** Provide 6 detailed prompts for generating images (DALL-E 3 style) relevant to the content sections.
+        4. **Meta (IMPORTANT):** Do NOT include planning notes like 'SEO를 위한 한마디' or '메타 설명 아이디어' inside the main content.
+           Provide meta info ONLY via meta_description/meta_keywords fields.
+        5. **Image Prompts:** Provide 6 detailed prompts for generating images relevant to the content sections.
         
         Output ONLY a JSON object with this format (no markdown code blocks):
         {{
             "final_title": "Your Catchy Title Here",
+            "meta_description": "One concise meta description (Korean)",
+            "meta_keywords": ["keyword1", "keyword2", "keyword3"],
             "content": "Full markdown content here...",
             "image_prompts": [
                 "Detailed prompt for intro image...",
@@ -107,6 +111,8 @@ class WriterAgent:
         Output ONLY JSON:
         {{
             "final_title": "Revised Title",
+            "meta_description": "One concise meta description (Korean)",
+            "meta_keywords": ["keyword1", "keyword2", "keyword3"],
             "content": "Revised Markdown Content...",
             "image_prompts": ["Keep original or update if needed..."]
         }}
