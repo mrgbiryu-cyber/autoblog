@@ -1,8 +1,8 @@
  "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, CalendarClock, CreditCard, Copy, Eye, Loader2, Shield } from "lucide-react";
+import { Bot, CreditCard, Copy, Eye, Loader2, Shield } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -20,31 +20,17 @@ import {
 } from "../../../lib/api";
 import { updateBlogConfig } from "@/services/settingsApi";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-
-const PLATFORM_SLOTS = [
-  {
-    platform: "Naver",
-    label: "네이버 블로그",
-    description: "마크다운을 자동 생성하여 복사/붙여넣기",
-    status: "Connected",
-  },
-  {
-    platform: "Tistory",
-    label: "티스토리 블로그",
-    description: "Freeform API로 HTML Draft 발행",
-    status: "Connected",
-  },
-  {
-    platform: "WordPress",
-    label: "워드프레스",
-    description: "Application Password 자동 Publish",
-    status: "Pending API",
-  },
-];
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TOTAL_BLOG_SLOTS = 5;
+const PANEL_DEFAULT_FORM = {
+  alias: "",
+  platform_type: "Naver",
+  blog_url: "",
+  blog_id: "",
+  api_access_token: "",
+};
 export default function Dashboard() {
   const [creditInfo, setCreditInfo] = useState<CreditStatusPayload>({
     current_credit: 0,
@@ -78,10 +64,8 @@ export default function Dashboard() {
   const [wordRange, setWordRange] = useState({ min: 800, max: 1200 });
   const [blogs, setBlogs] = useState<any[]>([]);
   const [postsStatus, setPostsStatus] = useState<any[]>([]);
-  const [blogModalOpen, setBlogModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<"create" | "edit">("create");
-  const [modalBlog, setModalBlog] = useState<any | null>(null);
-  const [formValues, setFormValues] = useState({
+  const [panelMode, setPanelMode] = useState<"create" | "edit">("create");
+  const [panelForm, setPanelForm] = useState({
     alias: "",
     platform_type: "Naver",
     blog_url: "",
@@ -89,8 +73,29 @@ export default function Dashboard() {
     api_access_token: "",
   });
   const [selectedBlogId, setSelectedBlogId] = useState<number | null>(null);
+  const [selectedCreateSlotIdx, setSelectedCreateSlotIdx] = useState<number | null>(null);
   const selectedBlog = blogs.find((blog) => blog.id === selectedBlogId);
   const [generateResult, setGenerateResult] = useState<PreviewResponse | null>(null);
+
+  useEffect(() => {
+    if (!selectedBlog) {
+      setTopic("AI Marketing Automation");
+      setPersonaText("전문 SEO 마케터처럼");
+      setWordRange({ min: 800, max: 1200 });
+      setPreviewImageCount(3);
+      setAnalysisPrompt("");
+      return;
+    }
+
+    setTopic(selectedBlog.default_category ?? selectedBlog.alias ?? "AI Marketing Automation");
+    setPersonaText(selectedBlog.persona ?? "전문 SEO 마케터처럼");
+    setWordRange({
+      min: selectedBlog.word_range?.min ?? 800,
+      max: selectedBlog.word_range?.max ?? 1200,
+    });
+    setPreviewImageCount(selectedBlog.image_count ?? 3);
+    setAnalysisPrompt(selectedBlog.custom_prompt ?? "");
+  }, [selectedBlog]);
 
   const clearImageTimers = () => {
     imageTimersRef.current.forEach((timer) => clearTimeout(timer));
@@ -105,6 +110,364 @@ export default function Dashboard() {
     };
   }, []);
 
+  const BlogSettingsPanel = () => {
+    const blog = selectedBlog;
+    const displayAlias = blog?.alias || panelForm.alias || "새 블로그 등록";
+    const displayUrl = blog?.blog_url || panelForm.blog_url || "등록 대기";
+    const displayPlatform = blog?.platform_type || panelForm.platform_type;
+    const hasApiKey = !!(blog?.api_key_data?.access_token || panelForm.api_access_token);
+    const statusText = blog ? blog.status || "연결 대기" : "등록 전";
+
+    return (
+      <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">플랫폼 정보</p>
+            <h3 className="text-2xl font-semibold text-white">{displayAlias}</h3>
+            <p className="text-sm text-slate-400 truncate">{displayUrl}</p>
+            <p className="text-xs text-slate-500">플랫폼: {displayPlatform}</p>
+          </div>
+          <div className="text-xs text-slate-400 text-right">
+            <p>API 키: {hasApiKey ? "등록됨" : "미등록"}</p>
+            <p>상태: {statusText}</p>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <label className="space-y-2 text-sm text-slate-400">
+            블로그 별칭
+            <input
+              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              value={panelForm.alias}
+              onChange={(e) => handlePanelFormChange("alias", e.target.value)}
+            />
+          </label>
+          <label className="space-y-2 text-sm text-slate-400">
+            플랫폼
+            <select
+              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              value={panelForm.platform_type}
+              onChange={(e) => handlePanelFormChange("platform_type", e.target.value)}
+            >
+              {["Naver", "Blogger", "Tistory", "InBlog", "WordPress"].map((platform) => (
+                <option key={platform} value={platform}>
+                  {platform}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-2 text-sm text-slate-400">
+            블로그 URL
+            <input
+              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              value={panelForm.blog_url}
+              onChange={(e) => handlePanelFormChange("blog_url", e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="space-y-2 text-sm text-slate-400">
+            블로그 ID
+            <input
+              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              value={panelForm.blog_id}
+              onChange={(e) => handlePanelFormChange("blog_id", e.target.value)}
+            />
+          </label>
+          <label className="space-y-2 text-sm text-slate-400">
+            API 키 / 토큰
+            <input
+              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              value={panelForm.api_access_token}
+              onChange={(e) => handlePanelFormChange("api_access_token", e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <label className="space-y-2 text-sm text-slate-400">
+            관심 주제 입력
+            <input
+              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="예: AI 마케팅 자동화, 노코드 리드 생성"
+            />
+          </label>
+          <label className="space-y-2 text-sm text-slate-400">
+            페르소나 입력
+            <input
+              type="text"
+              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              placeholder="예: 전문 SEO 마케터처럼 톤을 맞춰주세요"
+              value={personaText}
+              onChange={(e) => setPersonaText(e.target.value)}
+            />
+            <p className="text-xs text-slate-500">직접 입력한 페르소나가 AI 생성 프롬프트에 반영됩니다.</p>
+          </label>
+          <label className="space-y-2 text-sm text-slate-400">
+            이미지 생성 개수
+            <input
+              type="number"
+              min={1}
+              max={8}
+              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              value={previewImageCount}
+              onChange={(e) => setPreviewImageCount(Math.max(1, Number(e.target.value)))}
+            />
+          </label>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="space-y-2 text-sm text-slate-400">
+            글자수 범위 (min / max)
+            <div className="flex gap-3">
+              <input
+                type="number"
+                min={200}
+                max={wordRange.max}
+                className="w-1/2 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                value={wordRange.min}
+                onChange={(e) => updateWordRange("min", Number(e.target.value))}
+              />
+              <input
+                type="number"
+                min={wordRange.min}
+                max={2000}
+                className="w-1/2 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                value={wordRange.max}
+                onChange={(e) => updateWordRange("max", Number(e.target.value))}
+              />
+            </div>
+          </label>
+          <div className="rounded-2xl border border-slate-700 bg-slate-900 px-5 py-4 text-sm text-slate-200">
+            <p className="text-xs text-slate-500">예상 크레딧 소모량</p>
+            <p className="text-xl font-semibold text-white">{creditEstimate} 크레딧</p>
+            <p className="text-xs text-slate-500">
+              이미지 {previewImageCount}장 · 최대 {wordRange.max}자 기준
+            </p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+              분석된 카테고리: {analysisLoading ? "분석 중..." : analysisCategory || "불러오는 중..."}
+            </p>
+            <button
+              onClick={handleAnalyze}
+              disabled={analysisLoading}
+              className="rounded-full border border-slate-700 px-4 py-1 text-xs text-slate-300 hover:border-cyan-400 disabled:opacity-60"
+            >
+              {analysisLoading ? "재분석 중..." : analysisButtonText}
+            </button>
+          </div>
+          <label className="space-y-2 text-sm text-slate-400">
+            작성 지시 프롬프트 (수정 가능)
+            <textarea
+              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+              rows={3}
+              value={analysisPrompt}
+              onChange={(e) => setAnalysisPrompt(e.target.value)}
+            />
+          </label>
+          <p className="text-xs text-slate-500">
+            이 프롬프트가 Gemini에게 전달되어 SEO 최적화된 HTML을 생성합니다.
+          </p>
+        </div>
+
+        {/* 스케줄링 설정 (통합) */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-slate-200">스케줄링 설정</h4>
+            <p className="text-xs text-slate-500">요일/빈도/시간을 설정해 자동 발행을 예약합니다.</p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <label className="space-y-2 text-sm text-slate-400">
+              발행 빈도
+              <select
+                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                value={schedule.frequency}
+                onChange={(e) =>
+                  setSchedule((prev: SchedulePayload) => ({
+                    ...prev,
+                    frequency: e.target.value as SchedulePayload["frequency"],
+                  }))
+                }
+              >
+                <option value="hourly">매시간</option>
+                <option value="daily">매일</option>
+                <option value="weekly">매주</option>
+              </select>
+            </label>
+
+            <label className="space-y-2 text-sm text-slate-400">
+              하루 발행 수
+              <input
+                type="number"
+                min={1}
+                max={5}
+                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                value={schedule.posts_per_day}
+                onChange={(e) =>
+                  setSchedule((prev: SchedulePayload) => ({
+                    ...prev,
+                    posts_per_day: Number(e.target.value),
+                  }))
+                }
+              />
+            </label>
+
+            <label className="space-y-2 text-sm text-slate-400">
+              타겟 시간
+              <div className="space-y-2">
+                {schedule.target_times.map((time: string, index: number) => (
+                  <div key={`${time}-${index}`} className="flex gap-2 items-center">
+                    <input
+                      type="time"
+                      className="flex-1 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                      value={time}
+                      onChange={(e) => updateTime(e.target.value, index)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeTimeSlot(index)}
+                      className="rounded-full bg-slate-800 px-3 py-2 text-xs text-slate-400"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addTimeSlot}
+                  className="rounded-2xl border border-dashed border-slate-700 px-4 py-2 text-xs text-slate-400"
+                >
+                  시간 추가
+                </button>
+              </div>
+            </label>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 md:grid-cols-7">
+            {WEEKDAYS.map((day) => (
+              <button
+                key={day}
+                type="button"
+                onClick={() => toggleDay(day)}
+                className={`rounded-2xl border px-3 py-2 uppercase tracking-[0.2em] ${
+                  schedule.days.includes(day) ? "border-cyan-400 text-cyan-300" : "border-slate-700 text-slate-500"
+                }`}
+              >
+                {day}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-3 text-sm">
+          <button
+            onClick={handleAnalyze}
+            disabled={analysisLoading}
+            className="rounded-2xl border border-slate-700 px-5 py-3 font-semibold text-slate-300 hover:border-cyan-400 disabled:opacity-60"
+          >
+            {analysisLoading ? "분석 중..." : "분석하기"}
+          </button>
+          <button
+            onClick={handleSaveAll}
+            disabled={saveLoading}
+            className="rounded-2xl border border-slate-700 px-5 py-3 font-semibold text-slate-100 hover:border-emerald-400 disabled:opacity-60"
+          >
+            {saveLoading ? "저장 중..." : "설정 저장"}
+          </button>
+          <button
+            onClick={() => handlePreview(false)}
+            disabled={previewLoading}
+            className="rounded-2xl bg-amber-400 px-5 py-3 font-semibold text-slate-900 disabled:opacity-60"
+          >
+            HTML 즉시 생성
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-3 text-sm">
+          <button
+            onClick={() => handlePreview(false)}
+            disabled={previewLoading}
+            className="rounded-2xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950 shadow-lg shadow-cyan-500/40 disabled:opacity-60"
+          >
+            {previewLoading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                실행 중...
+              </span>
+            ) : (
+              "Live Preview 생성"
+            )}
+          </button>
+          <button
+            onClick={() => handlePreview(true)}
+            className="rounded-2xl border border-slate-700 px-5 py-3 font-semibold text-slate-300 hover:border-cyan-400"
+          >
+            무료 체험으로 HTML 생성
+          </button>
+          {previewHtml && (
+            <button
+              onClick={() => setModalOpen(true)}
+              className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-900"
+            >
+              <span className="flex items-center gap-2">
+                <Eye className="w-4 h-4" />
+                미리보기 열기
+              </span>
+            </button>
+          )}
+          {generateResult && (
+            <button
+              onClick={handleDownloadAll}
+              className="rounded-2xl px-5 py-3 text-sm font-semibold bg-amber-400 text-slate-900"
+            >
+              HTML 및 이미지 다운로드
+            </button>
+          )}
+          <button
+            onClick={handleDownloadAssets}
+            disabled={imageStatus !== "completed"}
+            className={`rounded-2xl px-5 py-3 text-sm font-semibold ${
+              imageStatus === "completed"
+                ? "bg-emerald-500 text-slate-950"
+                : "bg-slate-800 text-slate-500 cursor-not-allowed"
+            }`}
+          >
+            {imageStatus === "processing" ? "이미지 생성 중..." : "HTML 및 이미지 다운로드 (모달)"}
+          </button>
+        </div>
+        <p className="text-xs text-slate-500">
+          HTML 복사는 모달에서 복사 버튼을 이용하세요.{" "}
+          {imageStatus === "processing"
+            ? `이미지 생성 중 (${completedImages}/${imageTotal})...`
+            : imageStatus === "completed"
+            ? "이미지 생성이 완료되었습니다."
+            : ""}
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {imageCards.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-slate-700 p-4 text-center text-xs text-slate-500">
+              이미지 생성 요청 시 스켈레톤이 표시됩니다.
+            </div>
+          )}
+          {imageCards.map((card) => (
+            <div key={card.id} className="rounded-2xl border border-slate-800 bg-slate-950 p-3 shadow-inner">
+              <div className="h-40 w-full overflow-hidden rounded-2xl bg-slate-900">
+                {card.src ? (
+                  <img src={card.src} alt={`이미지 ${card.id}`} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="h-full w-full animate-pulse bg-gradient-to-br from-slate-900 to-slate-800" />
+                )}
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                이미지 #{card.id} {card.src ? "완료" : "생성 중..."}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
  
 
   const creditBadgeColor = useMemo(
@@ -133,59 +496,24 @@ export default function Dashboard() {
     }
   };
 
-  const openBlogModal = (mode: "create" | "edit", blog?: any) => {
-    setModalMode(mode);
-    if (mode === "edit" && blog) {
-      setModalBlog(blog);
-      setFormValues({
-        alias: blog.alias || "",
-        platform_type: blog.platform_type || "Naver",
-        blog_url: blog.blog_url || "",
-        blog_id: blog.blog_id || "",
-        api_access_token: blog.api_key_data?.access_token || "",
-      });
-    } else {
-      setModalBlog(null);
-      setFormValues({
-        alias: "",
-        platform_type: "Naver",
-        blog_url: "",
-        blog_id: "",
-        api_access_token: "",
-      });
-    }
-    setBlogModalOpen(true);
+  const preparePanelForCreate = (slotIdx: number) => {
+    setPanelMode("create");
+    setPanelForm(PANEL_DEFAULT_FORM);
+    setSelectedBlogId(null);
+    setSelectedCreateSlotIdx((prev) => (prev === slotIdx ? null : slotIdx));
   };
 
-  const closeBlogModal = () => {
-    setBlogModalOpen(false);
-  };
-
-  const handleSaveBlog = async () => {
-    const payload = {
-      alias: formValues.alias,
-      platform_type: formValues.platform_type,
-      blog_url: formValues.blog_url,
-      blog_id: formValues.blog_id,
-      api_access_token: formValues.api_access_token || undefined,
-    };
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/blogs/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (response.ok) {
-        await fetchBlogList();
-        setStatusMessages((prev) => [...prev, "블로그 정보가 저장되었습니다."]);
-        closeBlogModal();
-      } else {
-        const body = await response.json();
-        throw new Error(body.detail || "저장 실패");
-      }
-    } catch (error: any) {
-      setStatusMessages((prev) => [...prev, `블로그 저장 실패: ${error.message}`]);
-    }
+  const preparePanelForEdit = (blog: any) => {
+    setPanelMode("edit");
+    setSelectedCreateSlotIdx(null);
+    setPanelForm({
+      alias: blog.alias || "",
+      platform_type: blog.platform_type || "Naver",
+      blog_url: blog.blog_url || "",
+      blog_id: blog.blog_id || "",
+      api_access_token: blog.api_key_data?.access_token || "",
+    });
+    setSelectedBlogId((prev) => (prev === blog.id ? null : blog.id));
   };
 
   const handleDeleteBlog = async (id: number) => {
@@ -196,6 +524,10 @@ export default function Dashboard() {
       if (res.ok) {
         await fetchBlogList();
         setStatusMessages((prev) => [...prev, "블로그가 삭제되었습니다."]);
+        if (selectedBlogId === id) {
+          setSelectedBlogId(null);
+          setSelectedCreateSlotIdx(null);
+        }
       }
     } catch (error) {
       console.warn("삭제 실패", error);
@@ -235,6 +567,12 @@ export default function Dashboard() {
     fetchBoard();
     fetchBlogList();
   }, []);
+
+  const resolvePostLength = (maxWords: number) => {
+    if (maxWords <= 900) return "SHORT";
+    if (maxWords <= 1400) return "MEDIUM";
+    return "LONG";
+  };
 
   const handlePreview = async (freeTrial = false) => {
     setPreviewLoading(true);
@@ -294,9 +632,87 @@ export default function Dashboard() {
     }
   };
 
-  const handleCardToggle = (blogId: number) => {
-    setSelectedBlogId((prev) => (prev === blogId ? null : blogId));
+  const [saveLoading, setSaveLoading] = useState(false);
+
+  const handleSaveAll = async () => {
+    setSaveLoading(true);
+    try {
+      // 1) 블로그 기본정보 저장 (등록/수정)
+      let blogId = selectedBlogId;
+      if (panelMode === "create") {
+        const createRes = await fetch(`${API_BASE_URL}/api/v1/blogs/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            alias: panelForm.alias,
+            platform_type: panelForm.platform_type,
+            blog_url: panelForm.blog_url,
+            blog_id: panelForm.blog_id,
+            api_access_token: panelForm.api_access_token || undefined,
+          }),
+        });
+        if (!createRes.ok) {
+          const body = await createRes.json();
+          throw new Error(body.detail || "블로그 등록 실패");
+        }
+        const created = await createRes.json();
+        blogId = created.id;
+        setPanelMode("edit");
+        setSelectedBlogId(created.id);
+        setSelectedCreateSlotIdx(null);
+        setPanelForm({
+          alias: created.alias || panelForm.alias,
+          platform_type: created.platform_type || panelForm.platform_type,
+          blog_url: created.blog_url || panelForm.blog_url,
+          blog_id: created.blog_id || panelForm.blog_id,
+          api_access_token: created.api_key_data?.access_token || panelForm.api_access_token,
+        });
+        await fetchBlogList();
+      } else if (panelMode === "edit" && blogId) {
+        const updateRes = await fetch(`${API_BASE_URL}/api/v1/blogs/${blogId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            alias: panelForm.alias,
+            platform_type: panelForm.platform_type,
+            blog_url: panelForm.blog_url,
+            blog_id: panelForm.blog_id,
+            api_access_token: panelForm.api_access_token || undefined,
+          }),
+        });
+        if (!updateRes.ok) {
+          const body = await updateRes.json();
+          throw new Error(body.detail || "블로그 수정 실패");
+        }
+        await updateRes.json();
+        await fetchBlogList();
+      }
+
+      // 2) 지식 기반 AI 설정 저장 (유저 공통 설정 DB)
+      await updateBlogConfig({
+        category: topic,
+        custom_prompt: analysisPrompt,
+        post_length: resolvePostLength(wordRange.max),
+        image_count: previewImageCount,
+      });
+
+      // 3) 스케줄링 저장 (유저 공통 설정 DB)
+      await saveScheduleConfig(schedule);
+
+      setStatusMessages((prev: string[]) => [...prev, "설정이 저장되었습니다."]);
+    } catch (error: any) {
+      console.error("Save all failed", error);
+      setStatusMessages((prev: string[]) => [...prev, `설정 저장 실패: ${error.message}`]);
+    } finally {
+      setSaveLoading(false);
+    }
   };
+
+  const handlePanelFormChange = (key: keyof typeof PANEL_DEFAULT_FORM, value: string) => {
+    setPanelForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // blog create/update is included in handleSaveAll()
 
   const updateWordRange = (key: "min" | "max", value: number) => {
     setWordRange((prev) => {
@@ -437,7 +853,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-slate-900">블로그 관리</h2>
             <button
-              onClick={() => openBlogModal("create")}
+              onClick={() => preparePanelForCreate(0)}
               className="rounded-full border border-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-900 hover:bg-slate-900 hover:text-white transition"
             >
               + 신규 등록
@@ -445,339 +861,65 @@ export default function Dashboard() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {blogs.map((blog) => (
-              <button
-                key={blog.id}
-                onClick={() => handleCardToggle(blog.id)}
-                className="relative rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2 text-left hover:border-slate-900 transition"
-              >
-                <div className="absolute right-3 top-3 flex gap-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openBlogModal("edit", blog);
-                    }}
-                    className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:border-slate-900"
-                  >
-                    <span className="sr-only">수정</span>
-                    ⚙️
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteBlog(blog.id);
-                    }}
-                    className="rounded-full border border-red-200 bg-white px-2 py-1 text-xs text-red-600 hover:border-red-500"
-                  >
+              <Fragment key={blog.id}>
+                <button
+                  onClick={() => preparePanelForEdit(blog)}
+                  className="w-full relative rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2 text-left hover:border-slate-900 transition"
+                >
+                  <div className="absolute right-3 top-3 flex gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        preparePanelForEdit(blog);
+                      }}
+                      className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:border-slate-900"
+                    >
+                      <span className="sr-only">수정</span>⚙️
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteBlog(blog.id);
+                      }}
+                      className="rounded-full border border-red-200 bg-white px-2 py-1 text-xs text-red-600 hover:border-red-500"
+                    >
                       ✕
                     </button>
                   </div>
-                <p className="text-xs text-slate-500 uppercase tracking-[0.2em]">{blog.platform_type}</p>
-                <h3 className="text-lg font-semibold text-slate-900">{blog.alias || "블로그 이름 없음"}</h3>
-                <p className="text-xs text-slate-500 truncate">{blog.blog_url}</p>
-                <p className="text-xs text-slate-500">등록 ID: {blog.blog_id}</p>
-              </button>
-            ))}
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {Array.from({ length: TOTAL_BLOG_SLOTS - blogs.length }).map((_, idx) => (
-              <button
-                key={`slot-${idx}`}
-                onClick={() => openBlogModal("create")}
-                className="rounded-2xl border-2 border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 hover:border-slate-900 hover:text-slate-900 transition"
-              >
-                <div className="mx-auto mb-2 h-16 w-16 rounded-full border border-slate-300 bg-[url('/image_16d3ac.png')] bg-cover bg-center" />
-                + 아직 등록된 블로그가 없습니다
-                <br />
-                클릭하여 추가
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {selectedBlog ? (
-          <>
-            <section className="bg-slate-900 rounded-3xl p-6 space-y-6 border border-slate-800">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold">지식 기반 AI 포스팅</h2>
-              <p className="text-sm text-slate-400">관심 키워드와 페르소나를 조합하여 템플릿을 자동 생성합니다.</p>
-            </div>
-            <button className="text-xs uppercase tracking-[0.3em] text-slate-400">
-              Free Trial on Preview
-            </button>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <label className="space-y-2 text-sm text-slate-400">
-              관심 주제 입력
-              <input
-                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                placeholder="예: AI 마케팅 자동화, 노코드 리드 생성"
-              />
-            </label>
-            <label className="space-y-2 text-sm text-slate-400">
-              페르소나 입력
-              <input
-                type="text"
-                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
-                placeholder="예: 전문 SEO 마케터처럼 톤을 맞춰주세요"
-                value={personaText}
-                onChange={(e) => setPersonaText(e.target.value)}
-              />
-              <p className="text-xs text-slate-500">직접 입력한 페르소나가 AI 생성 프롬프트에 반영됩니다.</p>
-            </label>
-            <label className="space-y-2 text-sm text-slate-400">
-              이미지 생성 개수
-              <input
-                type="number"
-                min={1}
-                max={8}
-                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
-                value={previewImageCount}
-                onChange={(e) => setPreviewImageCount(Math.max(1, Number(e.target.value)))}
-              />
-            </label>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-2 text-sm text-slate-400">
-              글자수 범위 (min / max)
-              <div className="flex gap-3">
-                <input
-                  type="number"
-                  min={200}
-                  max={wordRange.max}
-                  className="w-1/2 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
-                  value={wordRange.min}
-                  onChange={(e) => updateWordRange("min", Number(e.target.value))}
-                />
-                <input
-                  type="number"
-                  min={wordRange.min}
-                  max={2000}
-                  className="w-1/2 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
-                  value={wordRange.max}
-                  onChange={(e) => updateWordRange("max", Number(e.target.value))}
-                />
-              </div>
-            </label>
-            <div className="rounded-2xl border border-slate-700 bg-slate-900 px-5 py-4 text-sm text-slate-200">
-              <p className="text-xs text-slate-500">예상 크레딧 소모량</p>
-              <p className="text-xl font-semibold text-white">{creditEstimate} 크레딧</p>
-              <p className="text-xs text-slate-500">
-                이미지 {previewImageCount}장 · 최대 {wordRange.max}자 기준
-              </p>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                분석된 카테고리: {analysisLoading ? "분석 중..." : analysisCategory || "불러오는 중..."}
-              </p>
-              <button
-                onClick={handleAnalyze}
-                disabled={analysisLoading}
-                className="rounded-full border border-slate-700 px-4 py-1 text-xs text-slate-300 hover:border-cyan-400 disabled:opacity-60"
-              >
-                {analysisLoading ? "재분석 중..." : "다시 분석하기"}
-              </button>
-            </div>
-            <label className="space-y-2 text-sm text-slate-400">
-              작성 지시 프롬프트 (수정 가능)
-              <textarea
-                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
-                rows={3}
-                value={analysisPrompt}
-                onChange={(e) => setAnalysisPrompt(e.target.value)}
-              />
-            </label>
-            <p className="text-xs text-slate-500">
-              이 프롬프트가 Gemini에게 전달되어 SEO 최적화된 HTML을 생성합니다.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <button
-              onClick={() => handlePreview(false)}
-              disabled={previewLoading}
-              className="rounded-2xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950 shadow-lg shadow-cyan-500/40 disabled:opacity-60"
-            >
-              {previewLoading ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  실행 중...
-                </span>
-              ) : (
-                "Live Preview 생성"
-              )}
-            </button>
-            <button
-              onClick={() => handlePreview(true)}
-              className="rounded-2xl border border-slate-700 px-5 py-3 font-semibold text-slate-300 hover:border-cyan-400"
-            >
-              무료 체험으로 HTML 생성
-            </button>
-            <button
-              onClick={handleAnalyze}
-              disabled={analysisLoading}
-              className="rounded-2xl border border-slate-700 px-5 py-3 font-semibold text-slate-300 hover:border-cyan-400 disabled:opacity-60"
-            >
-              {analysisLoading ? "분석 중..." : analysisButtonText}
-            </button>
-            {previewHtml && (
-              <button
-                onClick={() => setModalOpen(true)}
-                className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-900"
-              >
-                <span className="flex items-center gap-2">
-                  <Eye className="w-4 h-4" />
-                  미리보기 열기
-                </span>
-              </button>
-            )}
-            {generateResult && (
-              <button
-                onClick={handleDownloadAll}
-                className="rounded-2xl px-5 py-3 text-sm font-semibold bg-amber-400 text-slate-900"
-              >
-                HTML 및 이미지 다운로드
-              </button>
-            )}
-            <button
-              onClick={handleDownloadAssets}
-              disabled={imageStatus !== "completed"}
-              className={`rounded-2xl px-5 py-3 text-sm font-semibold ${
-                imageStatus === "completed"
-                  ? "bg-emerald-500 text-slate-950"
-                  : "bg-slate-800 text-slate-500 cursor-not-allowed"
-              }`}
-            >
-              {imageStatus === "processing" ? "이미지 생성 중..." : "HTML 및 이미지 다운로드 (모달)"}
-            </button>
-          </div>
-          <p className="text-xs text-slate-500">
-            HTML 복사는 모달에서 복사 버튼을 이용하세요.{" "}
-            {imageStatus === "processing"
-              ? `이미지 생성 중 (${completedImages}/${imageTotal})...`
-              : imageStatus === "completed"
-              ? "이미지 생성이 완료되었습니다."
-              : ""}
-          </p>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {imageCards.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-slate-700 p-4 text-center text-xs text-slate-500">
-                이미지 생성 요청 시 스켈레톤이 표시됩니다.
-              </div>
-            )}
-            {imageCards.map((card) => (
-              <div key={card.id} className="rounded-2xl border border-slate-800 bg-slate-950 p-3 shadow-inner">
-                <div className="h-40 w-full overflow-hidden rounded-2xl bg-slate-900">
-                  {card.src ? (
-                    <img src={card.src} alt={`이미지 ${card.id}`} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="h-full w-full animate-pulse bg-gradient-to-br from-slate-900 to-slate-800" />
-                  )}
-                </div>
-                <p className="mt-2 text-xs text-slate-400">
-                  이미지 #{card.id} {card.src ? "완료" : "생성 중..."}
-                </p>
-              </div>
-            ))}
-          </div>
-            </section>
-          </>
-        ) : (
-          <div className="rounded-3xl border border-dashed border-slate-600 p-6 text-center text-slate-500">
-            등록된 블로그 카드를 클릭하면 설정이 펼쳐집니다.
-          </div>
-        )}
-
-        <section className="bg-slate-900 rounded-3xl p-6 border border-slate-800 space-y-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold">스케줄링 설정</h2>
-            <button
-              onClick={handleScheduleSave}
-              disabled={scheduleSaving}
-              className="rounded-2xl bg-indigo-500 px-5 py-2 font-semibold text-slate-950 hover:bg-indigo-400 disabled:opacity-60"
-            >
-              {scheduleSaving ? "저장 중..." : "설정 저장"}
-            </button>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <label className="space-y-2 text-sm text-slate-400">
-              반복 주기
-              <select
-                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
-                value={schedule.frequency}
-                onChange={(e) =>
-                  setSchedule((prev: SchedulePayload) => ({
-                    ...prev,
-                    frequency: e.target.value as SchedulePayload["frequency"],
-                  }))
-                }
-              >
-                <option value="hourly">매시간</option>
-                <option value="daily">매일</option>
-                <option value="weekly">매주</option>
-              </select>
-            </label>
-            <label className="space-y-2 text-sm text-slate-400">
-              하루 발행 수
-              <input
-                type="number"
-                min={1}
-                max={5}
-                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
-                value={schedule.posts_per_day}
-                onChange={(e) =>
-                  setSchedule((prev: SchedulePayload) => ({
-                    ...prev,
-                    posts_per_day: Number(e.target.value),
-                  }))
-                }
-              />
-            </label>
-            <label className="space-y-2 text-sm text-slate-400">
-              타임 슬롯
-              <div className="space-y-2">
-                {schedule.target_times.map((time: string, index: number) => (
-                  <div key={`${time}-${index}`} className="flex gap-2 items-center">
-                    <input
-                      type="time"
-                      className="flex-1 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2 text-slate-100 focus:border-cyan-400 focus:outline-none"
-                      value={time}
-                      onChange={(e) => updateTime(e.target.value, index)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeTimeSlot(index)}
-                      className="rounded-full bg-slate-800 px-3 py-2 text-xs text-slate-400"
-                    >
-                      삭제
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={addTimeSlot}
-                  className="mt-1 rounded-2xl border border-dashed border-slate-700 px-4 py-2 text-xs text-slate-400"
-                >
-                  시간 추가
+                  <p className="text-xs text-slate-500 uppercase tracking-[0.2em]">{blog.platform_type}</p>
+                  <h3 className="text-lg font-semibold text-slate-900">{blog.alias || "블로그 이름 없음"}</h3>
+                  <p className="text-xs text-slate-500 truncate">{blog.blog_url}</p>
+                  <p className="text-xs text-slate-500">등록 ID: {blog.blog_id}</p>
                 </button>
-              </div>
-            </label>
+
+                {selectedBlogId === blog.id && (
+                  <div className="col-span-full rounded-3xl border border-slate-900/10 bg-white p-3">
+                    <BlogSettingsPanel />
+                  </div>
+                )}
+              </Fragment>
+            ))}
           </div>
-          <div className="grid grid-cols-2 gap-2 text-xs text-slate-400">
-            {WEEKDAYS.map((day) => (
-              <button
-                key={day}
-                type="button"
-                onClick={() => toggleDay(day)}
-                className={`rounded-2xl border px-3 py-2 uppercase tracking-[0.2em] ${
-                  schedule.days.includes(day) ? "border-cyan-400 text-cyan-300" : "border-slate-700 text-slate-500"
-                }`}
-              >
-                {day}
-              </button>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {Array.from({ length: Math.max(0, TOTAL_BLOG_SLOTS - blogs.length) }).map((_, idx) => (
+              <Fragment key={`slot-${idx}`}>
+                <button
+                  onClick={() => preparePanelForCreate(idx)}
+                  className="w-full rounded-2xl border-2 border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 hover:border-slate-900 hover:text-slate-900 transition"
+                >
+                  <div className="mx-auto mb-2 h-16 w-16 rounded-full border border-slate-300 bg-[url('/image_16d3ac.png')] bg-cover bg-center" />
+                  + 등록된 블로그가 없습니다
+                  <br />
+                  클릭하여 추가
+                </button>
+
+                {panelMode === "create" && selectedBlogId === null && selectedCreateSlotIdx === idx && (
+                  <div className="col-span-full rounded-3xl border border-slate-900/10 bg-white p-3">
+                    <BlogSettingsPanel />
+                  </div>
+                )}
+              </Fragment>
             ))}
           </div>
         </section>
@@ -942,72 +1084,6 @@ export default function Dashboard() {
               >
                 <Copy className="h-4 w-4" />
                 HTML 복사
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {blogModalOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 px-4 py-6">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold">
-                {modalMode === "edit" ? "블로그 정보 수정" : "블로그 등록"}
-              </h3>
-              <button className="text-sm text-slate-500" onClick={closeBlogModal}>
-                닫기
-              </button>
-            </div>
-            <div className="grid gap-3">
-              <label className="text-sm font-semibold text-slate-600">플랫폼</label>
-              <select
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-                value={formValues.platform_type}
-                onChange={(e) => setFormValues({ ...formValues, platform_type: e.target.value })}
-              >
-                {["Naver", "Blogger", "Tistory", "InBlog", "WordPress"].map((platform) => (
-                  <option key={platform} value={platform}>
-                    {platform}
-                  </option>
-                ))}
-              </select>
-              <label className="text-sm font-semibold text-slate-600">블로그 이름 (별칭)</label>
-              <input
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-                value={formValues.alias}
-                onChange={(e) => setFormValues({ ...formValues, alias: e.target.value })}
-              />
-              <label className="text-sm font-semibold text-slate-600">블로그 URL</label>
-              <input
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-                value={formValues.blog_url}
-                onChange={(e) => setFormValues({ ...formValues, blog_url: e.target.value })}
-              />
-              <label className="text-sm font-semibold text-slate-600">블로그 ID</label>
-              <input
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-                value={formValues.blog_id}
-                onChange={(e) => setFormValues({ ...formValues, blog_id: e.target.value })}
-              />
-              <label className="text-sm font-semibold text-slate-600">API 키 / 토큰</label>
-              <input
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-                value={formValues.api_access_token}
-                onChange={(e) => setFormValues({ ...formValues, api_access_token: e.target.value })}
-              />
-            </div>
-            <div className="mt-5 flex justify-end gap-3">
-              <button
-                onClick={closeBlogModal}
-                className="rounded-2xl border border-slate-300 px-4 py-2 text-sm text-slate-500"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleSaveBlog}
-                className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
-              >
-                저장
               </button>
             </div>
           </div>

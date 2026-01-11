@@ -12,6 +12,14 @@ from app.services.gemini_service import analyze_blog
 router = APIRouter()
 
 
+class BlogUpdate(BaseModel):
+    alias: str
+    platform_type: str
+    blog_url: str
+    blog_id: str
+    api_access_token: str | None = None
+
+
 class BlogAnalysisRequest(BaseModel):
     blog_id: int | None = None
 
@@ -74,4 +82,33 @@ async def analyze_blog_for_user(
 
     result = await analyze_blog(blog.blog_url, blog.alias or blog.blog_url)
     return BlogAnalysisResponse(category=result["category"], prompt=result["prompt"])
+
+
+@router.put("/{blog_id}", response_model=BlogResponse)
+def update_blog(
+    blog_id: int,
+    payload: BlogUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    blog = (
+        db.query(Blog)
+        .filter(Blog.user_id == current_user.id, Blog.id == blog_id)
+        .first()
+    )
+    if not blog:
+        raise HTTPException(status_code=404, detail="블로그를 찾을 수 없습니다.")
+
+    blog.alias = payload.alias
+    blog.platform_type = payload.platform_type
+    blog.blog_url = payload.blog_url
+    blog.blog_id = payload.blog_id
+    if payload.api_access_token:
+        blog.api_key_data = {"access_token": payload.api_access_token}
+    else:
+        blog.api_key_data = {}
+
+    db.commit()
+    db.refresh(blog)
+    return blog
 
