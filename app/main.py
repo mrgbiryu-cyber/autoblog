@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import asyncio
 
 from app.core.database import init_db  # [추가]
-from app.api.v1 import auth, blogs, posts, config  # config router
+from app.api.v1 import auth, blogs, posts, config, dashboard  # config router
 
 # 우리가 만든 에이전트들 임포트
 from app.agents.knowledge import KnowledgeAgent
@@ -31,6 +31,7 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(blogs.router, prefix="/api/v1/blogs", tags=["blogs"])
 app.include_router(posts.router, prefix="/api/v1/posts", tags=["posts"])
 app.include_router(config.router, prefix="/api/v1/config", tags=["config"])
+app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 
 # 요청 받을 데이터 모델
 class TopicRequest(BaseModel):

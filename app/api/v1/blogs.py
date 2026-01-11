@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -6,8 +7,18 @@ from app.core.database import get_db
 from app.models.sql_models import Blog, User
 from app.schemas import BlogCreate, BlogResponse
 from app.core.deps import get_current_user
+from app.services.gemini_service import analyze_blog
 
 router = APIRouter()
+
+
+class BlogAnalysisRequest(BaseModel):
+    blog_id: int | None = None
+
+
+class BlogAnalysisResponse(BaseModel):
+    category: str
+    prompt: str
 
 # 1. 내 블로그 등록하기
 @router.post("/", response_model=BlogResponse)
@@ -45,4 +56,22 @@ def read_blogs(
     current_user: User = Depends(get_current_user)
 ):
     return current_user.blogs
+
+
+@router.post("/analyze", response_model=BlogAnalysisResponse)
+async def analyze_blog_for_user(
+    payload: BlogAnalysisRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    query = db.query(Blog).filter(Blog.user_id == current_user.id)
+    if payload.blog_id:
+        query = query.filter(Blog.id == payload.blog_id)
+
+    blog = query.first()
+    if not blog:
+        raise HTTPException(status_code=404, detail="등록된 블로그가 없습니다.")
+
+    result = await analyze_blog(blog.blog_url, blog.alias or blog.blog_url)
+    return BlogAnalysisResponse(category=result["category"], prompt=result["prompt"])
 

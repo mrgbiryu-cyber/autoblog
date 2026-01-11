@@ -1,158 +1,672 @@
 "use client";
 
-import { useState } from "react";
-import axios from "axios";
-import { Bot, PenTool, Search, Send, CheckCircle, AlertTriangle, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Bot, CalendarClock, CreditCard, Copy, Eye, Loader2, Shield } from "lucide-react";
+import {
+  fetchBlogAnalysis,
+  fetchCreditStatus,
+  fetchKeywordTracking,
+  fetchScheduleConfig,
+  generatePreviewHtml,
+  saveScheduleConfig,
+  CreditStatusPayload,
+  KeywordTrackerRow,
+  SchedulePayload,
+  PreviewRequest,
+} from "../../../lib/api";
 
-// 환경변수를 못 읽더라도 무조건 형님의 서버 IP를 바라보게 합니다.
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://34.64.50.56";
+const PLATFORM_SLOTS = [
+  {
+    platform: "Naver",
+    label: "네이버 블로그",
+    description: "마크다운을 자동 생성하여 복사/붙여넣기",
+    status: "Connected",
+  },
+  {
+    platform: "Tistory",
+    label: "티스토리 블로그",
+    description: "Freeform API로 HTML Draft 발행",
+    status: "Connected",
+  },
+  {
+    platform: "WordPress",
+    label: "워드프레스",
+    description: "Application Password 자동 Publish",
+    status: "Pending API",
+  },
+];
+
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const PERSONAS = ["Data-Driven Strategist", "Friendly Storyteller", "Analytical Analyst", "Community Host"];
 
 export default function Dashboard() {
-  const [category, setCategory] = useState("AI Trends");
-  const [persona, setPersona] = useState("Friendly IT Expert");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [creditInfo, setCreditInfo] = useState<CreditStatusPayload>({
+    current_credit: 0,
+    upcoming_deduction: 0,
+  });
+  const [topic, setTopic] = useState("AI Marketing Automation");
+  const [persona, setPersona] = useState(PERSONAS[0]);
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [keywordTracker, setKeywordTracker] = useState<KeywordTrackerRow[]>([]);
+  const [schedule, setSchedule] = useState<SchedulePayload>({
+    frequency: "daily",
+    posts_per_day: 1,
+    days: ["Mon", "Wed", "Fri"],
+    target_times: ["09:00"],
+  });
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [statusMessages, setStatusMessages] = useState<string[]>([]);
+  const [imageStatus, setImageStatus] = useState<"idle" | "processing" | "completed">("idle");
+  const [imageTotal, setImageTotal] = useState(0);
+  const [completedImages, setCompletedImages] = useState(0);
+  const [imageCards, setImageCards] = useState<{id: number; src: string | null}[]>([]);
+  const imageTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const [previewImageCount, setPreviewImageCount] = useState(3);
+  const [analysisCategory, setAnalysisCategory] = useState("");
+  const [analysisPrompt, setAnalysisPrompt] = useState("");
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [wordRange, setWordRange] = useState({ min: 800, max: 1200 });
 
-  const handleGenerate = async () => {
-    setLoading(true);
-    setResult(null);
-    setLogs(["🚀 Starting AI Engine...", "🔍 Agent 1: Analyzing Trends...", "✍️ Agent 2: Drafting Content..."]);
+  const clearImageTimers = () => {
+    imageTimersRef.current.forEach((timer) => clearTimeout(timer));
+    imageTimersRef.current = [];
+  };
 
+  useEffect(() => {
+    return () => {
+      clearImageTimers();
+    };
+  }, []);
+
+  const creditBadgeColor = useMemo(() => (creditInfo.current_credit > 30 ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"), [creditInfo]);
+  const creditEstimate = useMemo(
+    () => previewImageCount * 2 + Math.floor(wordRange.max / 1000),
+    [previewImageCount, wordRange.max]
+  );
+
+  useEffect(() => {
+    const fetchBoard = async () => {
+      try {
+        const [credit, keywords, savedSchedule] = await Promise.all([
+          fetchCreditStatus(),
+          fetchKeywordTracking(),
+          fetchScheduleConfig(),
+        ]);
+        setCreditInfo(credit);
+        setKeywordTracker(keywords);
+        if (savedSchedule) {
+          setSchedule((prev: SchedulePayload) => ({ ...prev, ...savedSchedule }));
+        }
+      } catch (error) {
+        console.warn("Dashboard initial load failed, populating defaults.", error);
+      }
+    };
+    fetchBoard();
+  }, []);
+
+  const handlePreview = async (freeTrial = false) => {
+    setPreviewLoading(true);
+    setStatusMessages((prev: string[]) => [...prev, freeTrial ? "무료 체험 HTML을 요청합니다..." : "미리보기 AI 엔진을 실행합니다..."]);
+    simulateImageGeneration(previewImageCount);
     try {
-      // 백엔드 호출
-      const response = await axios.post(`${API_BASE_URL}/generate-post`, {
-        category,
+      const previewPayload: PreviewRequest = {
+        topic,
         persona,
-      });
-
-      setLogs((prev) => [
-        ...prev, 
-        "✅ Content Drafted.", 
-        "🧐 Agent 3: SEO Checking...", 
-        "🧼 Agent 4: Cleaning Images & Publishing..."
+        image_count: previewImageCount,
+        custom_prompt: analysisPrompt || undefined,
+        word_count_range: [wordRange.min, wordRange.max],
+        free_trial: freeTrial,
+      };
+      const preview = await generatePreviewHtml(previewPayload);
+      setPreviewHtml(preview.html);
+      setModalOpen(true);
+      setStatusMessages((prev: string[]) => [
+        ...prev,
+        "미리보기 HTML이 준비되었습니다.",
+        preview.credits_required ? `예상 크레딧 ${preview.credits_required}개` : "필요 크레딧이 계산되었습니다.",
       ]);
-      
-      setResult(response.data);
-      setLoading(false);
     } catch (error) {
-      console.error(error);
-      setLogs((prev) => [...prev, "❌ Error occurred during generation."]);
-      setLoading(false);
+      console.error("Preview generation failed", error);
+      setStatusMessages((prev: string[]) => [...prev, "미리보기 생성에 실패했습니다."]);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleCopyPreview = async () => {
+    if (!previewHtml) return;
+    try {
+      await navigator.clipboard.writeText(previewHtml);
+      setStatusMessages((prev: string[]) => [...prev, "HTML이 클립보드에 복사되었습니다."]);
+    } catch (error) {
+      setStatusMessages((prev: string[]) => [...prev, "클립보드 복사가 지원되지 않는 환경입니다."]);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (analysisLoading) return;
+    setAnalysisLoading(true);
+    try {
+      const result = await fetchBlogAnalysis();
+      setAnalysisCategory(result.category);
+      setTopic(result.category);
+      setAnalysisPrompt(result.prompt);
+      setStatusMessages((prev: string[]) => [...prev, "블로그 분석 결과를 적용했습니다."]);
+    } catch (error) {
+      console.error("Blog analysis failed", error);
+      setStatusMessages((prev: string[]) => [...prev, "블로그 분석에 실패했습니다."]);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  const updateWordRange = (key: "min" | "max", value: number) => {
+    setWordRange((prev) => {
+      const normalized = key === "min" ? Math.min(value, prev.max) : Math.max(value, prev.min);
+      return { ...prev, [key]: normalized };
+    });
+  };
+
+  useEffect(() => {
+    handleAnalyze();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleDownloadAssets = () => {
+    if (!previewHtml) return;
+    const blob = new Blob([previewHtml], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `ai_preview_${Date.now()}.html`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setStatusMessages((prev: string[]) => [...prev, "HTML 다운로드 링크가 생성되었습니다."]);
+  };
+
+  const simulateImageGeneration = (total: number) => {
+    if (total <= 0) return;
+    clearImageTimers();
+    setImageTotal(total);
+    setCompletedImages(0);
+    setImageCards(Array.from({ length: total }, (_, idx) => ({ id: idx + 1, src: null })));
+    setImageStatus("processing");
+
+    Array.from({ length: total }).forEach((_, index) => {
+      const timer = setTimeout(() => {
+        setImageCards((prev) =>
+          prev.map((card) =>
+            card.id === index + 1
+              ? {
+                  ...card,
+                  src: `https://via.placeholder.com/320x180.png?text=Image+${index + 1}`,
+                }
+              : card
+          )
+        );
+        setCompletedImages((prev) => prev + 1);
+        if (index === total - 1) {
+          setImageStatus("completed");
+          setStatusMessages((prev: string[]) => [...prev, "모든 이미지가 준비되었습니다."]);
+        }
+      }, (index + 1) * 900);
+      imageTimersRef.current.push(timer);
+    });
+  };
+
+  const toggleDay = (day: string) => {
+    setSchedule((prev: SchedulePayload) => {
+      const already = prev.days.includes(day);
+      const updatedDays = already ? prev.days.filter((d) => d !== day) : [...prev.days, day];
+      return { ...prev, days: updatedDays };
+    });
+  };
+
+  const updateTime = (value: string, index: number) => {
+    setSchedule((prev: SchedulePayload) => {
+      const targetTimes = [...prev.target_times];
+      targetTimes[index] = value;
+      return { ...prev, target_times: targetTimes };
+    });
+  };
+
+  const addTimeSlot = () => {
+    setSchedule((prev: SchedulePayload) => ({ ...prev, target_times: [...prev.target_times, "09:00"] }));
+  };
+
+  const removeTimeSlot = (index: number) => {
+    setSchedule((prev: SchedulePayload) => ({
+      ...prev,
+      target_times: prev.target_times.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleScheduleSave = async () => {
+    setScheduleSaving(true);
+    try {
+      await saveScheduleConfig(schedule);
+      setStatusMessages((prev: string[]) => [...prev, "일정이 저장되었습니다."]);
+    } catch (error) {
+      console.error("Schedule save failed", error);
+      setStatusMessages((prev: string[]) => [...prev, "일정 저장 중 문제가 발생했습니다."]);
+    } finally {
+      setScheduleSaving(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 font-sans text-gray-900">
-      <div className="max-w-4xl mx-auto space-y-8">
-        
-        {/* 헤더 */}
-        <div className="flex items-center space-x-3 mb-8">
-          <div className="p-3 bg-blue-600 rounded-lg shadow-lg">
-            <Bot className="w-8 h-8 text-white" />
-          </div>
+    <div className="min-h-screen bg-slate-950 text-slate-100 px-6 py-10">
+      <div className="max-w-6xl mx-auto space-y-8">
+        <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">AI Blog Auto-Pilot</h1>
-            <p className="text-gray-500">지능형 콘텐츠 자동화 엔진 대시보드</p>
+            <p className="text-sm uppercase tracking-[0.25em] text-slate-400">AI Marketing Automation Engine</p>
+            <h1 className="text-4xl font-bold flex items-center gap-3">
+              <Bot className="w-10 h-10 text-cyan-400" />
+              형님의 AI 대시보드
+            </h1>
+            <p className="text-slate-400 mt-1">통합 블로그/플랫폼 일정, 크레딧, SEO 트래킹을 한 눈에.</p>
           </div>
-        </div>
-
-        {/* 입력 카드 */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">Topic / Category</label>
-              <input
-                type="text"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
-                placeholder="Ex) AI, Stock, Health"
-              />
+          <div className="flex flex-wrap gap-3">
+            <div className={`rounded-2xl px-5 py-3 text-sm font-semibold flex items-center gap-2 ${creditBadgeColor}`}>
+              <CreditCard className="w-4 h-4" />
+              크레딧 {creditInfo.current_credit} + 차감 예정 {creditInfo.upcoming_deduction}
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">Writer Persona</label>
+            <button className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-5 py-3 rounded-2xl font-bold">
+              크레딧 충전하기
+            </button>
+          </div>
+        </header>
+
+        <section className="grid gap-5 md:grid-cols-3">
+          {PLATFORM_SLOTS.map((slot) => (
+            <div key={slot.platform} className="bg-slate-900 rounded-3xl p-5 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">{slot.label}</h3>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{slot.status}</span>
+              </div>
+              <p className="text-sm text-slate-400">{slot.description}</p>
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <span>스케줄 확인</span>
+                <div className="flex items-center gap-2">
+                  <CalendarClock className="w-4 h-4 text-cyan-400" />
+                  <span>{schedule.frequency === "daily" ? "Daily" : schedule.frequency}</span>
+                </div>
+              </div>
+              <p className="text-xs text-slate-500">다음 예약 시간: {schedule.target_times[0]}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="bg-slate-900 rounded-3xl p-6 space-y-6 border border-slate-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold">지식 기반 AI 포스팅</h2>
+              <p className="text-sm text-slate-400">관심 키워드와 페르소나를 조합하여 템플릿을 자동 생성합니다.</p>
+            </div>
+            <button className="text-xs uppercase tracking-[0.3em] text-slate-400">
+              Free Trial on Preview
+            </button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            <label className="space-y-2 text-sm text-slate-400">
+              관심 주제 입력
               <input
-                type="text"
+                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder="예: AI 마케팅 자동화, 노코드 리드 생성"
+              />
+            </label>
+            <label className="space-y-2 text-sm text-slate-400">
+              페르소나 선택
+              <select
+                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
                 value={persona}
                 onChange={(e) => setPersona(e.target.value)}
-                className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
-                placeholder="Ex) Friendly Expert"
+              >
+                {PERSONAS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-2 text-sm text-slate-400">
+              이미지 생성 개수
+              <input
+                type="number"
+                min={1}
+                max={8}
+                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                value={previewImageCount}
+                onChange={(e) => setPreviewImageCount(Math.max(1, Number(e.target.value)))}
               />
+            </label>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-2 text-sm text-slate-400">
+              글자수 범위 (min / max)
+              <div className="flex gap-3">
+                <input
+                  type="number"
+                  min={200}
+                  max={wordRange.max}
+                  className="w-1/2 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                  value={wordRange.min}
+                  onChange={(e) => updateWordRange("min", Number(e.target.value))}
+                />
+                <input
+                  type="number"
+                  min={wordRange.min}
+                  max={2000}
+                  className="w-1/2 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                  value={wordRange.max}
+                  onChange={(e) => updateWordRange("max", Number(e.target.value))}
+                />
+              </div>
+            </label>
+            <div className="rounded-2xl border border-slate-700 bg-slate-900 px-5 py-4 text-sm text-slate-200">
+              <p className="text-xs text-slate-500">예상 크레딧 소모량</p>
+              <p className="text-xl font-semibold text-white">{creditEstimate} 크레딧</p>
+              <p className="text-xs text-slate-500">
+                이미지 {previewImageCount}장 · 최대 {wordRange.max}자 기준
+              </p>
             </div>
           </div>
-          
-          <button
-            onClick={handleGenerate}
-            disabled={loading}
-            className={`mt-6 w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center space-x-2 transition-all ${
-              loading 
-                ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
-                : "bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-            }`}
-          >
-            {loading ? <Loader2 className="animate-spin" /> : <Send className="w-5 h-5" />}
-            <span>{loading ? "Generating Content (Please Wait...)" : "Start Auto-Generation"}</span>
-          </button>
-        </div>
-
-        {/* 상태 로그 창 */}
-        {logs.length > 0 && (
-          <div className="bg-gray-900 text-green-400 p-6 rounded-2xl font-mono text-sm shadow-inner overflow-hidden">
-            <h3 className="text-gray-400 mb-4 border-b border-gray-800 pb-2">System Logs</h3>
-            <div className="space-y-1">
-              {logs.map((log, i) => (
-                <div key={i} className="animate-pulse">{log}</div>
-              ))}
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                분석된 카테고리: {analysisLoading ? "분석 중..." : analysisCategory || "불러오는 중..."}
+              </p>
+              <button
+                onClick={handleAnalyze}
+                disabled={analysisLoading}
+                className="rounded-full border border-slate-700 px-4 py-1 text-xs text-slate-300 hover:border-cyan-400 disabled:opacity-60"
+              >
+                {analysisLoading ? "재분석 중..." : "다시 분석하기"}
+              </button>
             </div>
+            <label className="space-y-2 text-sm text-slate-400">
+              작성 지시 프롬프트 (수정 가능)
+              <textarea
+                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                rows={3}
+                value={analysisPrompt}
+                onChange={(e) => setAnalysisPrompt(e.target.value)}
+              />
+            </label>
+            <p className="text-xs text-slate-500">
+              이 프롬프트가 Gemini에게 전달되어 SEO 최적화된 HTML을 생성합니다.
+            </p>
           </div>
-        )}
-
-        {/* 결과 카드 */}
-        {result && (
-          <div className="bg-white p-8 rounded-2xl shadow-lg border border-blue-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">🎉 Generation Complete!</h2>
-              <span className={`px-4 py-1 rounded-full text-sm font-bold ${result.seo_score >= 80 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                SEO Score: {result.seo_score}/100
-              </span>
-            </div>
-
-            <div className="space-y-6">
-              <div className="p-4 bg-gray-50 rounded-xl">
-                <p className="text-sm text-gray-500 mb-1">Generated Topic</p>
-                <p className="font-semibold text-lg">{result.topic?.topic}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-                    <p className="text-sm text-gray-500 mb-1">Keywords</p>
-                    <div className="flex flex-wrap gap-2">
-                        {result.topic?.keywords?.map((k:string, i:number) => (
-                            <span key={i} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs">#{k}</span>
-                        ))}
-                    </div>
-                 </div>
-                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-                    <p className="text-sm text-gray-500 mb-1">Status</p>
-                    <div className="flex items-center text-green-600 font-bold">
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        {result.published_info?.status?.toUpperCase()}
-                    </div>
-                 </div>
-              </div>
-
-              <div className="pt-4 border-t border-gray-100">
-                  <p className="text-sm text-gray-500 mb-2">Publish URL (Simulation)</p>
-                  <a href={result.published_info?.url} target="_blank" className="text-blue-600 hover:underline break-all">
-                      {result.published_info?.url}
-                  </a>
-              </div>
-            </div>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <button
+              onClick={() => handlePreview(false)}
+              disabled={previewLoading}
+              className="rounded-2xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950 shadow-lg shadow-cyan-500/40 disabled:opacity-60"
+            >
+              {previewLoading ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  실행 중...
+                </span>
+              ) : (
+                "Live Preview 생성"
+              )}
+            </button>
+            <button
+              onClick={() => handlePreview(true)}
+              className="rounded-2xl border border-slate-700 px-5 py-3 font-semibold text-slate-300 hover:border-cyan-400"
+            >
+              무료 체험으로 HTML 생성
+            </button>
+            {previewHtml && (
+              <button
+                onClick={() => setModalOpen(true)}
+                className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-900"
+              >
+                <span className="flex items-center gap-2">
+                  <Eye className="w-4 h-4" />
+                  미리보기 열기
+                </span>
+              </button>
+            )}
+            <button
+              onClick={handleDownloadAssets}
+              disabled={imageStatus !== "completed"}
+              className={`rounded-2xl px-5 py-3 text-sm font-semibold ${
+                imageStatus === "completed"
+                  ? "bg-emerald-500 text-slate-950"
+                  : "bg-slate-800 text-slate-500 cursor-not-allowed"
+              }`}
+            >
+              {imageStatus === "processing" ? "이미지 생성 중..." : "HTML 및 이미지 다운로드"}
+            </button>
           </div>
-        )}
+          <p className="text-xs text-slate-500">
+            HTML 복사는 모달에서 복사 버튼을 이용하세요.{" "}
+            {imageStatus === "processing"
+              ? `이미지 생성 중 (${completedImages}/${imageTotal})...`
+              : imageStatus === "completed"
+              ? "이미지 생성이 완료되었습니다."
+              : ""}
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {imageCards.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-700 p-4 text-center text-xs text-slate-500">
+                이미지 생성 요청 시 스켈레톤이 표시됩니다.
+              </div>
+            )}
+            {imageCards.map((card) => (
+              <div key={card.id} className="rounded-2xl border border-slate-800 bg-slate-950 p-3 shadow-inner">
+                <div className="h-40 w-full overflow-hidden rounded-2xl bg-slate-900">
+                  {card.src ? (
+                    <img src={card.src} alt={`이미지 ${card.id}`} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="h-full w-full animate-pulse bg-gradient-to-br from-slate-900 to-slate-800" />
+                  )}
+                </div>
+                <p className="mt-2 text-xs text-slate-400">
+                  이미지 #{card.id} {card.src ? "완료" : "생성 중..."}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
 
+        <section className="bg-slate-900 rounded-3xl p-6 border border-slate-800 space-y-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-semibold">스케줄링 설정</h2>
+            <button
+              onClick={handleScheduleSave}
+              disabled={scheduleSaving}
+              className="rounded-2xl bg-indigo-500 px-5 py-2 font-semibold text-slate-950 hover:bg-indigo-400 disabled:opacity-60"
+            >
+              {scheduleSaving ? "저장 중..." : "설정 저장"}
+            </button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            <label className="space-y-2 text-sm text-slate-400">
+              반복 주기
+              <select
+                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                value={schedule.frequency}
+                onChange={(e) =>
+                  setSchedule((prev: SchedulePayload) => ({
+                    ...prev,
+                    frequency: e.target.value as SchedulePayload["frequency"],
+                  }))
+                }
+              >
+                <option value="hourly">매시간</option>
+                <option value="daily">매일</option>
+                <option value="weekly">매주</option>
+              </select>
+            </label>
+            <label className="space-y-2 text-sm text-slate-400">
+              하루 발행 수
+              <input
+                type="number"
+                min={1}
+                max={5}
+                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                value={schedule.posts_per_day}
+                onChange={(e) =>
+                  setSchedule((prev: SchedulePayload) => ({
+                    ...prev,
+                    posts_per_day: Number(e.target.value),
+                  }))
+                }
+              />
+            </label>
+            <label className="space-y-2 text-sm text-slate-400">
+              타임 슬롯
+              <div className="space-y-2">
+                {schedule.target_times.map((time: string, index: number) => (
+                  <div key={`${time}-${index}`} className="flex gap-2 items-center">
+                    <input
+                      type="time"
+                      className="flex-1 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2 text-slate-100 focus:border-cyan-400 focus:outline-none"
+                      value={time}
+                      onChange={(e) => updateTime(e.target.value, index)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeTimeSlot(index)}
+                      className="rounded-full bg-slate-800 px-3 py-2 text-xs text-slate-400"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addTimeSlot}
+                  className="mt-1 rounded-2xl border border-dashed border-slate-700 px-4 py-2 text-xs text-slate-400"
+                >
+                  시간 추가
+                </button>
+              </div>
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs text-slate-400">
+            {WEEKDAYS.map((day) => (
+              <button
+                key={day}
+                type="button"
+                onClick={() => toggleDay(day)}
+                className={`rounded-2xl border px-3 py-2 uppercase tracking-[0.2em] ${
+                  schedule.days.includes(day) ? "border-cyan-400 text-cyan-300" : "border-slate-700 text-slate-500"
+                }`}
+              >
+                {day}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="bg-slate-900 rounded-3xl p-6 border border-slate-800">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-semibold">키워드 노출 트래킹</h2>
+            <small className="text-xs text-slate-500">최신 24시간 내 데이터</small>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-xs">
+              <thead>
+                <tr className="text-slate-400">
+                  <th className="pb-3 pr-6">키워드</th>
+                  <th className="pb-3 pr-6">플랫폼</th>
+                  <th className="pb-3 pr-6">순위</th>
+                  <th className="pb-3 pr-6">변동</th>
+                  <th className="pb-3">업데이트</th>
+                </tr>
+              </thead>
+              <tbody className="text-slate-200">
+                {keywordTracker.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-6 text-center text-slate-500">
+                      데이터가 없습니다. AI 포스팅을 생성하면 자동으로 수집됩니다.
+                    </td>
+                  </tr>
+                ) : (
+                  keywordTracker.map((row) => (
+                    <tr key={row.keyword + row.platform} className="border-t border-slate-800">
+                      <td className="py-3 pr-6 font-semibold">{row.keyword}</td>
+                      <td className="py-3 pr-6 text-slate-400">{row.platform}</td>
+                      <td className="py-3 pr-6 text-cyan-300">{row.rank}위</td>
+                      <td className="py-3 pr-6 text-sm">
+                        {row.change >= 0 ? (
+                          <span className="flex items-center gap-1 text-lime-300">
+                            <ArrowIcon />
+                            {row.change >= 0 ? `+${row.change}` : row.change}
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-rose-300">
+                            <ArrowIcon down />
+                            {row.change}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 text-slate-500">{row.updated_at}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="bg-slate-900 rounded-3xl p-6 border border-slate-800 space-y-3">
+          <h2 className="text-2xl font-semibold">실행 로그</h2>
+          <div className="space-y-2 text-xs text-slate-400">
+            {statusMessages.length === 0 ? (
+              <p>최근 액션 기록이 없습니다.</p>
+            ) : (
+              statusMessages.slice(-5).map((message, index) => (
+                <p key={index} className="flex items-center gap-2">
+                  <Shield className="h-3 w-3 text-cyan-400" />
+                  {message}
+                </p>
+              ))
+            )}
+          </div>
+        </section>
       </div>
+
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6">
+          <div className="w-full max-w-3xl rounded-3xl bg-slate-950 p-6 border border-cyan-500 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-semibold">HTML 미리보기</h3>
+              <button className="text-sm text-slate-400" onClick={() => setModalOpen(false)}>
+                닫기
+              </button>
+            </div>
+            <div className="my-4 max-h-96 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-300">
+              <pre className="whitespace-pre-wrap">{previewHtml || "아직 생성된 HTML이 없습니다."}</pre>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={handleCopyPreview}
+                className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 px-4 py-2 text-sm text-slate-300"
+              >
+                <Copy className="h-4 w-4" />
+                HTML 복사
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function ArrowIcon({ down }: { down?: boolean }) {
+  return (
+    <span
+      className={`h-3 w-3 inline-block border-b-2 transform ${down ? "border-rose-300 rotate-45" : "border-lime-300 -rotate-45"}`}
+    />
   );
 }
