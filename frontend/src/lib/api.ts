@@ -100,6 +100,18 @@ export async function saveScheduleConfig(payload: SchedulePayload): Promise<void
   }
 }
 
+export async function registerBulkKeywords(keywords: string[]): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/keywords/bulk-register`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify({ keywords }),
+  });
+  if (!response.ok) {
+    throw new Error("Failed to register bulk keywords");
+  }
+  return await response.json();
+}
+
 export async function fetchKeywordTracking(): Promise<KeywordTrackerRow[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/posts/keywords`, {

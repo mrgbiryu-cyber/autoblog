@@ -22,6 +22,7 @@ import {
   PreviewResponse,
   publishPostManual,
   trackPost,
+  registerBulkKeywords,
 } from "../../../lib/api";
 // NOTE: 기존에는 유저 공통 설정(`/config/blog-settings`)에 저장했지만,
 // 현재 UX 요구사항은 "블로그별"로 category/prompt/persona/wordRange/imageCount가 저장되어야 합니다.
@@ -869,8 +870,29 @@ export default function Dashboard() {
         await fetchBlogList();
       }
 
-      // 2) 스케줄링 저장 (유저 공통 설정 DB)
-      await saveScheduleConfig(schedule);
+      // 2) 스케줄링 및 키워드 저장
+      if (regMode === "schedule") {
+        // 벌크 키워드 파싱 및 등록
+        const keywordList = bulkKeywords
+          .split("\n")
+          .map((k) => k.trim())
+          .filter((k) => k.length > 0)
+          .map((k) => k.split("(")[0].trim()); // "키워드(123)" 형태에서 키워드만 추출
+
+        if (keywordList.length > 0) {
+          await registerBulkKeywords(keywordList);
+        }
+        
+        await saveScheduleConfig({
+          ...schedule,
+          is_active: true
+        });
+      } else {
+        await saveScheduleConfig({
+          ...schedule,
+          is_active: false
+        });
+      }
 
       setStatusMessages((prev: string[]) => [...prev, "설정이 저장되었습니다."]);
       setIsSettingsSaved(true);
