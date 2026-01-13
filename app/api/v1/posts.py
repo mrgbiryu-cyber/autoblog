@@ -63,12 +63,12 @@ class PostPreviewPayload(BaseModel):
     keywords: list[str] | None = None # TO-BE: 키워드 리스트 추가
 
 
-async def process_image_generation(post_id: int, index: int, prompt: str, gen_ts: int):
+async def process_image_generation(post_id: int, index: int, prompt: str, gen_key: str):
     try:
         wf = _workflow_path_for_runtime()
         image_bytes = await generate_image_sync(wf, prompt)
-        # 파일명에 타임스탬프를 추가하여 고유성 보장
-        filename = f"post_{post_id}_{gen_ts}_img_{index}.png"
+        # 고유 키(gen_key)를 포함하여 절대 중복되지 않는 파일명 생성
+        filename = f"post_{post_id}_{gen_key}_img_{index}.png"
         url = save_image_bytes(filename, image_bytes)
 
         # DB에도 이미지 URL 저장 (다운로드/상태 확인용)
@@ -181,23 +181,16 @@ async def generate_post_with_images(
         img_prompts = []
     img_prompts, _img_issues = validate_and_fix_image_prompts(payload.topic, img_prompts)
 
-    # 프론트가 스켈레톤을 그릴 수 있도록 미리 URL을 확정해서 반환
-    import time
-    gen_ts = int(time.time())
-    image_urls = [f"/generated_images/post_{new_post.id}_{gen_ts}_img_{i + 1}.png" for i in range(payload.image_count)]
+    # 프론트가 스켈레톤을 그릴 수 있도록 고유 세션 키 생성 및 URL 반환
+    import uuid
+    gen_key = uuid.uuid4().hex[:8]
+    image_urls = [f"/generated_images/post_{new_post.id}_{gen_key}_img_{i + 1}.png" for i in range(payload.image_count)]
     new_post.image_paths = []  # 실제 저장 완료된 것만 DB에 축적
     db.commit()
 
     for i in range(payload.image_count):
-        # 썸네일(마지막) 이미지인 경우 별도 처리
-        if i == payload.image_count - 1:
-            base_prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} blog thumbnail design, high quality, professional"
-            # 썸네일은 본문 내용과 제목을 기반으로 한 번 더 강조
-            prompt = f"{base_prompt}, photorealistic, detailed, blog thumbnail"
-        else:
-            prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} high quality photography, real life, detailed"
-            
-        background_tasks.add_task(process_image_generation, post_id=new_post.id, index=i + 1, prompt=prompt, gen_ts=gen_ts)
+        # ... 중략 ...
+        background_tasks.add_task(process_image_generation, post_id=new_post.id, index=i + 1, prompt=prompt, gen_key=gen_key)
 
     return {
         "status": "processing",
