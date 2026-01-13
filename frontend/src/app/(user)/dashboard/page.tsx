@@ -423,63 +423,66 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* 5. 생성 결과 및 이미지 상태 */}
+        <div className="space-y-6 pt-6 border-t border-slate-800">
+          <div className="flex flex-wrap gap-3 text-sm">
+            {previewHtml && (
+              <button
+                onClick={() => setModalOpen(true)}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 hover:border-slate-400"
+              >
+                <span className="flex items-center gap-2">
+                  <Eye className="w-4 h-4" />
+                  미리보기 열기
+                </span>
+              </button>
+            )}
+            {generateResult && (
+              <button
+                onClick={handleDownloadAll}
+                className="rounded-2xl px-5 py-3 text-sm font-semibold bg-emerald-500 text-white"
+              >
+                다운로드
+              </button>
+            )}
+          </div>
+          
+          <p className="text-xs text-slate-500">
+            HTML 복사는 모달에서 복사 버튼을 이용하세요.{" "}
+            {imageStatus === "processing"
+              ? `이미지 생성 중 (${completedImages}/${imageTotal})...`
+              : imageStatus === "completed"
+              ? "이미지 생성이 완료되었습니다."
+              : ""}
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {imageCards.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-700 p-4 text-center text-xs text-slate-500">
+                이미지 생성 요청 시 스켈레톤이 표시됩니다.
+              </div>
+            )}
+            {imageCards.map((card) => (
+              <div key={card.id} className="rounded-2xl border border-slate-800 bg-slate-950 p-3 shadow-inner">
+                <div className="h-40 w-full overflow-hidden rounded-2xl bg-slate-900">
+                  {card.src ? (
+                    <img src={card.src} alt={`이미지 ${card.id}`} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="h-full w-full animate-pulse bg-gradient-to-br from-slate-900 to-slate-800" />
+                  )}
+                </div>
+                <p className="mt-2 text-xs text-slate-400">
+                  이미지 #{card.id} {card.src ? "완료" : "생성 중..."}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   };
-        <div className="flex flex-wrap gap-3 text-sm">
-          {previewHtml && (
-            <button
-              onClick={() => setModalOpen(true)}
-              className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 hover:border-slate-400"
-            >
-              <span className="flex items-center gap-2">
-                <Eye className="w-4 h-4" />
-                미리보기 열기
-              </span>
-            </button>
-          )}
-          {generateResult && (
-            <button
-              onClick={handleDownloadAll}
-              className="rounded-2xl px-5 py-3 text-sm font-semibold bg-emerald-500 text-white"
-            >
-              다운로드
-            </button>
-          )}
-        </div>
-        <p className="text-xs text-slate-500">
-          HTML 복사는 모달에서 복사 버튼을 이용하세요.{" "}
-          {imageStatus === "processing"
-            ? `이미지 생성 중 (${completedImages}/${imageTotal})...`
-            : imageStatus === "completed"
-            ? "이미지 생성이 완료되었습니다."
-            : ""}
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {imageCards.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-slate-700 p-4 text-center text-xs text-slate-500">
-              이미지 생성 요청 시 스켈레톤이 표시됩니다.
-            </div>
-          )}
-          {imageCards.map((card) => (
-            <div key={card.id} className="rounded-2xl border border-slate-800 bg-slate-950 p-3 shadow-inner">
-              <div className="h-40 w-full overflow-hidden rounded-2xl bg-slate-900">
-                {card.src ? (
-                  <img src={card.src} alt={`이미지 ${card.id}`} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="h-full w-full animate-pulse bg-gradient-to-br from-slate-900 to-slate-800" />
-                )}
-              </div>
-              <p className="mt-2 text-xs text-slate-400">
-                이미지 #{card.id} {card.src ? "완료" : "생성 중..."}
-              </p>
-            </div>
-              ))}
-            </div>
-          </div>
-    );
-  };
- 
+
 
   const creditBadgeColor = useMemo(
     () => (creditInfo.current_credit > 30 ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"),
