@@ -193,7 +193,7 @@ export async function publishPostManual(postId: number): Promise<{ status: strin
 export type RechargeRequestPayload = {
   amount: number;
   requested_credits: number;
-  depositor_name: str;
+  depositor_name: string;
 };
 
 export async function createRechargeRequest(payload: RechargeRequestPayload): Promise<any> {
