@@ -641,41 +641,50 @@ export default function Dashboard() {
       return;
     }
 
+    // 2. 이전 상태 초기화 (중요)
+    setPreviewHtml("");
+    setGenerateResult(null);
+    setImageCards([]);
+    setCompletedImages(0);
+    setImageStatus("idle");
+
     setPreviewLoading(true);
     setDimLoadingOpen(true);
     setDimLoadingStatus("loading");
     setDimLoadingLogs([freeTrial ? "무료 체험 HTML을 요청합니다..." : "미리보기 AI 엔진을 실행합니다..."]);
     
     try {
-    const previewPayload: PreviewRequest = {
-      topic,
-      persona: personaText,
-      image_count: previewImageCount,
-      custom_prompt: analysisPrompt || undefined,
-      word_count_range: [wordRange.min, wordRange.max],
-      free_trial: freeTrial,
-      keywords: selectedKeywordsList.length > 0 ? selectedKeywordsList : undefined,
-    };
+      const previewPayload: PreviewRequest = {
+        topic,
+        persona: personaText,
+        image_count: previewImageCount,
+        custom_prompt: analysisPrompt || undefined,
+        word_count_range: [wordRange.min, wordRange.max],
+        free_trial: freeTrial,
+        keywords: selectedKeywordsList.length > 0 ? selectedKeywordsList : undefined,
+      };
+
+      // 3. 본문 텍스트 생성
       const preview = await generatePreviewHtml(previewPayload);
       setPreviewHtml(preview.html);
       setGenerateResult(preview);
-      setModalOpen(true);
-      setDimLoadingLogs((prev) => [...prev, "AI 엔진이 HTML 초안 생성을 완료했습니다."]);
+      setDimLoadingLogs((prev) => [...prev, "본문 작성이 완료되었습니다. 이미지를 생성 중입니다..."]);
 
+      // 4. 이미지 생성 상태 확인 및 폴링
       if (preview.status === "processing" && preview.images && preview.images.length) {
-        setDimLoadingLogs((prev) => [...prev, "백그라운드에서 이미지 생성을 시작합니다..."]);
-        // 백엔드가 HTML 먼저 반환하고, 이미지는 백그라운드로 생성됨
         setImageTotal(preview.images.length);
         setCompletedImages(0);
         setImageStatus("processing");
-        setImageCards(preview.images.map((src, idx) => ({ id: idx + 1, src: null })));
+        // 스켈레톤 이미지 카드로 초기화
+        setImageCards(preview.images.map((_, idx) => ({ id: idx + 1, src: null })));
 
-        // 이미지 URL을 폴링해서 생성 완료되면 스켈레톤을 실제 이미지로 교체
+        // 이미지 파일이 실제 생성되었는지 폴링
         const poll = async () => {
           const urls = preview.images || [];
           const checks = await Promise.all(
             urls.map(async (u) => {
               try {
+                // 캐시 방지를 위해 타임스탬프 추가
                 const res = await fetch(`${u}?t=${Date.now()}`, { method: "HEAD" });
                 return res.ok;
               } catch {
@@ -683,17 +692,18 @@ export default function Dashboard() {
               }
             })
           );
+          
           const done = checks.filter(Boolean).length;
           setCompletedImages(done);
-          setImageCards(urls.map((u, idx) => ({ id: idx + 1, src: checks[idx] ? u : null })));
+          setImageCards(urls.map((u, idx) => ({ 
+            id: idx + 1, 
+            src: checks[idx] ? `${u}?t=${Date.now()}` : null 
+          })));
           
           if (done > 0) {
             setDimLoadingLogs((prev) => {
-                const last = prev[prev.length - 1];
-                if (last.startsWith("이미지 생성 중")) {
-                    return [...prev.slice(0, -1), `이미지 생성 중 (${done}/${urls.length})...` ];
-                }
-                return [...prev, `이미지 생성 중 (${done}/${urls.length})...` ];
+              const baseLogs = prev.filter(log => !log.startsWith("이미지 생성 중"));
+              return [...baseLogs, `이미지 생성 중 (${done}/${urls.length})...` ];
             });
           }
 
@@ -701,13 +711,17 @@ export default function Dashboard() {
             setImageStatus("completed");
             setDimLoadingLogs((prev) => [...prev, "모든 이미지가 성공적으로 생성되었습니다!"]);
             setDimLoadingStatus("success");
+            // 모든 과정이 완료된 후에 모달 오픈 (선택 사항: 이미 생성 중일 때 미리 볼지 결정)
+            setModalOpen(true); 
             return;
           }
-          setTimeout(poll, 1500);
+          setTimeout(poll, 2000); // 2초 간격으로 폴링
         };
         setTimeout(poll, 1000);
       } else {
+        // 이미지가 없거나 이미 완료된 경우
         setDimLoadingStatus("success");
+        setModalOpen(true);
       }
     } catch (error) {
       console.error("Preview generation failed", error);
