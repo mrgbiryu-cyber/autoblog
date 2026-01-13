@@ -162,7 +162,7 @@ export type BlogAnalysisResponse = {
   prompt: string;
 };
 
-export async function fetchBlogAnalysis(params?: { blog_id?: number; blog_url?: string; alias?: string }): Promise<BlogAnalysisResponse> {
+export async function fetchBlogAnalysis(params?: { blog_id?: number; blog_url?: string; alias?: string; topic?: string }): Promise<BlogAnalysisResponse> {
   const response = await fetch(`${API_BASE_URL}/api/v1/blogs/analyze`, {
     method: "POST",
     headers: buildHeaders(),

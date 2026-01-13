@@ -2,25 +2,48 @@
 
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { BarChart3, Clock, Eye, ExternalLink } from "lucide-react";
+import { BarChart3, Clock, Eye, ExternalLink, Loader2 } from "lucide-react";
+import { publishPostManual, buildHeaders } from "@/lib/api";
 
 // 환경변수를 못 읽더라도 무조건 형님의 서버 IP를 바라보게 합니다.
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://34.64.50.56";
 
 export default function StatusPage() {
   const [statusData, setStatusData] = useState<any[]>([]);
+  const [publishLoading, setPublishLoading] = useState<number | null>(null);
+
+  const fetchStatus = async () => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/v1/posts/status`, {
+        headers: buildHeaders()
+      });
+      setStatusData(res.data);
+    } catch (err) {
+      console.error("현황 로드 실패", err);
+    }
+  };
 
   useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const res = await axios.get(`${API_BASE_URL}/api/v1/posts/status`);
-        setStatusData(res.data);
-      } catch (err) {
-        console.error("현황 로드 실패", err);
-      }
-    };
     fetchStatus();
   }, []);
+
+  const handlePublishManual = async (postId: number) => {
+    if (!confirm("이 포스팅을 발행 처리하시겠습니까? 발행 후 자동으로 순위 트래킹이 시작됩니다.")) return;
+    setPublishLoading(postId);
+    try {
+      const res = await publishPostManual(postId);
+      if (res.status === "success") {
+        alert("발행 및 트래킹 시작이 완료되었습니다.");
+        fetchStatus();
+      } else {
+        alert(`발행 실패: ${res.message}`);
+      }
+    } catch (err) {
+      alert("발행 중 오류가 발생했습니다.");
+    } finally {
+      setPublishLoading(null);
+    }
+  };
 
   const timeAgo = (dateStr: string) => {
     const diff = new Date().getTime() - new Date(dateStr).getTime();
@@ -98,11 +121,23 @@ export default function StatusPage() {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${
-                          post.status === "PUBLISHED" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-                        }`}>
-                          {post.status}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded text-xs font-bold ${
+                            post.status === "PUBLISHED" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                          }`}>
+                            {post.status}
+                          </span>
+                          {post.status !== "PUBLISHED" && (
+                            <button
+                              onClick={() => handlePublishManual(post.id)}
+                              disabled={publishLoading === post.id}
+                              className="px-2 py-1 bg-blue-600 text-white rounded text-[10px] font-bold hover:bg-blue-500 disabled:opacity-50 flex items-center gap-1"
+                            >
+                              {publishLoading === post.id && <Loader2 className="w-3 h-3 animate-spin" />}
+                              발행 완료
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

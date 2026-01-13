@@ -32,6 +32,7 @@ class BlogAnalysisRequest(BaseModel):
     blog_id: int | None = None
     blog_url: str | None = None
     alias: str | None = None
+    topic: str | None = None
 
 
 class BlogAnalysisResponse(BaseModel):
@@ -85,7 +86,7 @@ async def analyze_blog_for_user(
 ):
     # 등록 전(슬롯) 분석도 지원: blog_url이 들어오면 해당 URL로 분석
     if payload.blog_url:
-        result = await analyze_blog(payload.blog_url, payload.alias or payload.blog_url)
+        result = await analyze_blog(payload.blog_url, payload.alias or payload.blog_url, payload.topic)
         return BlogAnalysisResponse(category=result["category"], prompt=result["prompt"])
 
     query = db.query(Blog).filter(Blog.owner_id == current_user.id)
@@ -96,7 +97,7 @@ async def analyze_blog_for_user(
     if not blog:
         raise HTTPException(status_code=404, detail="등록된 블로그가 없습니다.")
 
-    result = await analyze_blog(blog.blog_url, blog.alias or blog.blog_url)
+    result = await analyze_blog(blog.blog_url, blog.alias or blog.blog_url, payload.topic)
     return BlogAnalysisResponse(category=result["category"], prompt=result["prompt"])
 
 

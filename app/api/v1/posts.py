@@ -233,7 +233,21 @@ async def publish_manual_post(
             post.status = "PUBLISHED"
             post.published_url = result.get("url")
             post.published_at = datetime.now()
+            
+            # 발행 성공 시 즉시 트래킹 시작
+            post.tracking_status = "TRACKING"
             db.commit()
+            
+            try:
+                await tracking_service.update_post_tracking(db, post_id)
+                post.tracking_status = "COMPLETED"
+                post.last_tracked_at = datetime.now()
+                db.commit()
+            except Exception as track_err:
+                LOGGER.error(f"Auto-tracking failed after manual publish for post {post_id}: {track_err}")
+                post.tracking_status = "PENDING"
+                db.commit()
+
             return {"status": "success", "url": post.published_url}
         else:
             return {"status": "failed", "message": result.get("message", "발행 실패")}

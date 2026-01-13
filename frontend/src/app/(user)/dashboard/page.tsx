@@ -90,6 +90,18 @@ export default function Dashboard() {
   const [dimLoadingLogs, setDimLoadingLogs] = useState<string[]>([]);
   const selectedBlog = blogs.find((blog) => blog.id === selectedBlogId);
   const [generateResult, setGenerateResult] = useState<PreviewResponse | null>(null);
+  const [isSettingsSaved, setIsSettingsSaved] = useState(true);
+
+  const analysisTextAreaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (analysisTextAreaRef.current) {
+      analysisTextAreaRef.current.style.height = "auto";
+      analysisTextAreaRef.current.style.height = analysisTextAreaRef.current.scrollHeight + "px";
+    }
+    // 프롬프트나 주요 설정 수정 시 저장 필요 상태로 변경
+    setIsSettingsSaved(false);
+  }, [analysisPrompt, analysisCategory, topic, personaText, wordRange, previewImageCount]);
 
   useEffect(() => {
     if (!selectedBlog) {
@@ -112,6 +124,9 @@ export default function Dashboard() {
     setPreviewImageCount(selectedBlog.image_count ?? 3);
     setAnalysisCategory(selectedBlog.default_category ?? "");
     setAnalysisPrompt(selectedBlog.custom_prompt ?? "");
+    
+    // 블로그가 로드되면 초기 상태는 '저장됨' 상태입니다.
+    setTimeout(() => setIsSettingsSaved(true), 100);
   }, [selectedBlog]);
 
   const clearImageTimers = () => {
@@ -338,8 +353,8 @@ export default function Dashboard() {
                 >
                     <Search className="w-3 h-3" />
                     키워드 검색 추가
-                </button>
-              </div>
+          </button>
+        </div>
               <textarea
                 className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
                 rows={6}
@@ -435,8 +450,9 @@ export default function Dashboard() {
                 <div className="space-y-2">
                     <p className="text-[10px] text-cyan-400 font-semibold uppercase">글 작성 가이드라인</p>
                     <textarea
-                        className="w-full bg-slate-950/50 rounded-xl border border-slate-800 p-4 text-sm text-slate-200 focus:border-cyan-500 transition outline-none"
-                        rows={10}
+                        ref={analysisTextAreaRef}
+                        className="w-full bg-slate-950/50 rounded-xl border border-slate-800 p-4 text-sm text-slate-200 focus:border-cyan-500 transition outline-none overflow-hidden"
+                        rows={1}
                         value={analysisPrompt}
                         onChange={(e) => setAnalysisPrompt(e.target.value)}
                         placeholder="AI에게 전달할 상세 지시사항이 여기에 표시됩니다."
@@ -617,6 +633,13 @@ export default function Dashboard() {
   };
 
   const handlePreview = async (freeTrial = false) => {
+    // 1. 설정 저장 여부 확인 (분석 정보가 있을 때만)
+    const hasAnalysis = Boolean(analysisCategory || analysisPrompt);
+    if (hasAnalysis && !isSettingsSaved) {
+      alert("설정저장을 먼저 클릭한 후 다시 시도하세요");
+      return;
+    }
+
     setPreviewLoading(true);
     setDimLoadingOpen(true);
     setDimLoadingStatus("loading");
@@ -746,14 +769,15 @@ export default function Dashboard() {
     try {
       const result = await fetchBlogAnalysis(
         selectedBlogId
-          ? { blog_id: selectedBlogId }
+          ? { blog_id: selectedBlogId, topic }
           : panelForm.blog_url
-          ? { blog_url: panelForm.blog_url, alias: panelForm.alias || undefined }
-          : {}
+          ? { blog_url: panelForm.blog_url, alias: panelForm.alias || undefined, topic }
+          : { topic }
       );
       setAnalysisCategory(result.category);
       setAnalysisPrompt(normalizeAnalysisPrompt(result.prompt));
       setAnalysisButtonText("다시 분석하기");
+      setIsSettingsSaved(false); // 분석 결과 수신 시 저장 필요 상태로 변경
       setStatusMessages((prev: string[]) => [...prev, "블로그 분석 결과를 적용했습니다."]);
     } catch (error) {
       console.error("Blog analysis failed", error);
@@ -849,6 +873,7 @@ export default function Dashboard() {
       await saveScheduleConfig(schedule);
 
       setStatusMessages((prev: string[]) => [...prev, "설정이 저장되었습니다."]);
+      setIsSettingsSaved(true);
     } catch (error: any) {
       console.error("Save all failed", error);
       setStatusMessages((prev: string[]) => [...prev, `설정 저장 실패: ${error.message}`]);
@@ -1278,7 +1303,7 @@ export default function Dashboard() {
                                     disabled={publishLoading === post.id}
                                     className="px-3 py-1 bg-cyan-500 text-slate-950 rounded-lg text-xs font-bold hover:bg-cyan-400 disabled:opacity-50"
                                 >
-                                    {publishLoading === post.id ? "발행 중..." : "즉시 발행"}
+                                    {publishLoading === post.id ? "발행 중..." : "발행 완료"}
                                 </button>
                             )}
                             {post.published_url ? (

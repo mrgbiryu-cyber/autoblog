@@ -119,16 +119,19 @@ async def _call_prompt(prompt: str) -> str:
     return await asyncio.to_thread(sync_call)
 
 
-async def analyze_blog(blog_url: str, alias: str | None) -> dict:
+async def analyze_blog(blog_url: str, alias: str | None, topic: str | None = None) -> dict:
     """
     Analyze the given blog URL using Gemini and return category + prompt recommendations.
     """
     description = alias or blog_url
+    topic_context = f"\n현재 작성하려는 주제/키워드: {topic}" if topic else ""
     prompt = (
         "당신은 블로그 니치를 분석하는 전문가입니다.\n"
-        "아래 URL/별칭을 분석해서 최적의 카테고리(한글)와 SEO 최적화 글 작성 지시 프롬프트(한글)를 JSON으로만 반환하세요.\n"
+        "아래 URL/별칭과 주제를 분석해서 최적의 카테고리(한글)와 SEO 최적화 글 작성 지시 프롬프트(한글)를 JSON으로만 반환하세요.\n"
+        "프롬프트에는 '제목 55자 이내, 키워드 전진 배치', '2줄 단위 문단 나누기', '메타 설명 120~160자'와 같은 SEO 규격 지침을 반드시 포함하세요.\n"
+        f"제공된 주제({topic or '없음'})가 있는 경우, 해당 주제에 특화된 SEO 전략을 프롬프트에 녹여내세요.\n"
         "반드시 다음 형태만 허용됩니다: {\"category\": \"...\", \"prompt\": \"...\"}\n\n"
-        f"URL/별칭: {description}"
+        f"URL/별칭: {description}{topic_context}"
     )
 
     raw = await _call_prompt(prompt)
@@ -212,8 +215,8 @@ async def generate_html(
         f"- 작성 지시: {prompt_text}\n\n"
         "body_html에는 제목(h1), 소제목(h2/h3), 본문(p), 목록(ul/ol)을 적절히 포함하고,\n"
         f"이미지 위치는 <!-- IMAGE_PLACEHOLDER_1 --> 부터 <!-- IMAGE_PLACEHOLDER_{image_count} --> 까지 순서대로 포함하세요.\n"
-        f"image_prompts는 반드시 {image_count}개를 생성하고, 주제에 맞는 구체적 장면 묘사로 작성하세요.\n"
-        "마지막 이미지는 '썸네일용 대표 이미지, 클릭 유도, 고해상도, 리얼리스틱'으로 작성하세요.\n"
+        f"image_prompts는 반드시 {image_count}개를 생성하고, 작성한 본문 내용의 흐름과 각 문단의 맥락에 정확히 일치하는 구체적인 시각적 장면을 묘사하세요.\n"
+        "마지막 이미지는 '썸네일용 대표 이미지, 글의 핵심 주제를 상징하는 매력적인 디자인, 고해상도'로 작성하세요.\n"
     )
 
     raw = await _call_prompt(full_prompt)
