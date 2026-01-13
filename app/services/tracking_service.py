@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import logging
 from sqlalchemy.orm import Session
 from app.models.sql_models import Post
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import asyncio
 
 logger = logging.getLogger(__name__)
