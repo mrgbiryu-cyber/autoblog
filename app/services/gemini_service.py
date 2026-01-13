@@ -161,40 +161,59 @@ async def generate_html(
     prompt: str | None,
     word_count_range: tuple[int, int],
     image_count: int,
+    keywords: list[str] | None = None,  # TO-BE: 키워드 리스트 추가
 ) -> dict:
     """
     Generate SEO-optimized HTML document + metadata + image prompts.
 
-    요구사항:
-    - 본문에는 기획 메모(예: 'SEO를 위한 한마디', '메타 설명 아이디어')가 절대 포함되면 안 됨
-    - 메타 정보는 <head>의 <meta> 태그에만 포함
-    - 이미지 프롬프트는 포스팅 주제에 맞는 동적 프롬프트로 반환 (image_count 개)
+    TO-BE 요구사항:
+    - 제목: 55자 이내, 키워드 전진 배치
+    - 메타 설명: 120~160자
+    - 본문: 2줄 단위 문단 나누기 (모바일 최적화)
+    - CTA 버튼: 본문 하단 자동 삽입
+    - 썸네일: 마지막 이미지 프롬프트를 썸네일 전용으로 생성
+    - 이미지 프롬프트: 주제 키워드 포함 필수 (정합성 100%)
     """
     min_words, max_words = word_count_range
     prompt_text = prompt or f"{topic} 주제로 SEO 최적화 HTML을 작성하세요."
+    keyword_str = ", ".join(keywords or [])
 
     full_prompt = (
         "당신은 SEO 전문 콘텐츠 에디터입니다.\n"
-        "다음 입력을 바탕으로 블로그 포스팅을 생성하되, 결과는 JSON으로만 반환하세요.\n"
-        "중요: 본문(body_html)에는 기획 단계 문구(예: 'SEO를 위한 한마디', '메타 설명 아이디어')를 절대 포함하지 마세요.\n"
-        "메타 설명/키워드/제목은 meta_description/meta_keywords/title 필드로만 제공하고, 본문에는 넣지 마세요.\n"
+        "다음 입력을 바탕으로 블로그 포스팅을 생성하되, 결과는 JSON으로만 반환하세요.\n\n"
+        "[SEO 규격 - 필수 준수]\n"
+        f"- 제목: 55자 이내, 키워드({keyword_str}) 앞단 배치\n"
+        "- 메타 설명: 120~160자 (정확히 이 범위 내)\n"
+        "- 본문: 2줄 단위 문단 나누기 (모바일 최적화, <p> 태그 2~3문장 단위)\n"
+        "- CTA: 본문 하단에 행동 유도 버튼 포함 (<div class='cta-button'>)\n\n"
+        "[이미지 프롬프트 규격]\n"
+        f"- 총 {image_count}개 생성\n"
+        f"- 마지막 이미지는 썸네일 전용 (대표 이미지, 클릭 유도, 고해상도)\n"
+        f"- 모든 프롬프트에 주제({topic}) 키워드 포함 필수 (정합성 100%)\n"
+        "- 마케팅/대시보드/UI 등 주제와 무관한 단어 사용 금지\n\n"
+        "[중요 금지사항]\n"
+        "- 본문(body_html)에 기획 단계 문구(예: 'SEO를 위한 한마디', '메타 설명 아이디어') 절대 포함 금지\n"
+        "- 메타 설명/키워드/제목은 meta_description/meta_keywords/title 필드로만 제공\n\n"
         "반드시 다음 형태만 허용됩니다(코드펜스 금지):\n"
         "{\n"
-        "  \"title\": \"...\",\n"
-        "  \"meta_description\": \"...\",\n"
-        "  \"meta_keywords\": [\"...\"],\n"
-        "  \"summary\": \"...\",\n"
-        "  \"body_html\": \"...\",\n"
-        "  \"image_prompts\": [\"...\"]\n"
+        "  \"title\": \"키워드 포함 55자 이내 제목\",\n"
+        "  \"meta_description\": \"120~160자 메타 설명\",\n"
+        "  \"meta_keywords\": [\"키워드1\", \"키워드2\"],\n"
+        "  \"summary\": \"요약\",\n"
+        "  \"body_html\": \"2줄 단위 문단 HTML + CTA 버튼\",\n"
+        "  \"image_prompts\": [\"프롬프트1\", ..., \"썸네일 전용 프롬프트\"],\n"
+        "  \"cta_text\": \"CTA 버튼 문구\"\n"
         "}\n\n"
         f"- 주제: {topic}\n"
         f"- 페르소나: {persona}\n"
         f"- 글자수: {min_words}~{max_words}\n"
+        f"- 키워드: {keyword_str}\n"
         f"- 이미지 개수: {image_count}\n"
         f"- 작성 지시: {prompt_text}\n\n"
         "body_html에는 제목(h1), 소제목(h2/h3), 본문(p), 목록(ul/ol)을 적절히 포함하고,\n"
         f"이미지 위치는 <!-- IMAGE_PLACEHOLDER_1 --> 부터 <!-- IMAGE_PLACEHOLDER_{image_count} --> 까지 순서대로 포함하세요.\n"
-        f"image_prompts는 반드시 {image_count}개를 생성하고, 요리/사진 등 실제 주제에 맞는 구체적 장면 묘사로 작성하세요.\n"
+        f"image_prompts는 반드시 {image_count}개를 생성하고, 주제에 맞는 구체적 장면 묘사로 작성하세요.\n"
+        "마지막 이미지는 '썸네일용 대표 이미지, 클릭 유도, 고해상도, 리얼리스틱'으로 작성하세요.\n"
     )
 
     raw = await _call_prompt(full_prompt)
@@ -230,17 +249,56 @@ async def generate_html(
     data = _try_parse_json_object(raw)
     if data:
         title = str(data.get("title") or topic).strip()
+        # TO-BE: 제목 55자 제한 강제
+        if len(title) > 55:
+            # 키워드가 앞단에 배치되도록 자릅니다.
+            title = title[:52].strip() + "..."
+        
         meta_description = str(data.get("meta_description") or "").strip()
+        # TO-BE: 메타 설명 120~160자 강제
+        if len(meta_description) < 120:
+            # 너무 짧으면 문장을 추가하거나 패딩
+            meta_description = (meta_description + " " + title + "에 대한 상세한 정보를 확인해보세요.").strip()
+            if len(meta_description) > 160:
+                meta_description = meta_description[:157] + "..."
+        elif len(meta_description) > 160:
+            meta_description = meta_description[:157].strip() + "..."
+        
         meta_keywords = data.get("meta_keywords") or []
         if not isinstance(meta_keywords, list):
             meta_keywords = [str(meta_keywords)]
+        
         summary = str(data.get("summary") or "").strip()
         body_html = str(data.get("body_html") or "").strip()
+        cta_text = str(data.get("cta_text") or "더 알아보기").strip()
+        
+        # TO-BE: CTA 버튼 자동 삽입
+        if "<div class='cta-button'>" not in body_html and "<div class=\"cta-button\">" not in body_html:
+            cta_html = f"""\n<div class="cta-button" style="text-align: center; margin-top: 40px;">
+  <a href="#" style="display: inline-block; padding: 15px 30px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">{cta_text}</a>
+</div>"""
+            body_html = body_html + cta_html
+        
         image_prompts = data.get("image_prompts") or []
         if not isinstance(image_prompts, list):
             image_prompts = []
+        
+        # TO-BE: 마지막 프롬프트를 썸네일 전용으로 강제 보정 (Reviewer 단계에서도 하지만 생성 시점 최적화)
+        if image_prompts:
+            last_idx = len(image_prompts) - 1
+            if "thumbnail" not in image_prompts[last_idx].lower() and "대표 이미지" not in image_prompts[last_idx].lower():
+                image_prompts[last_idx] = f"{topic} 주제의 블로그 썸네일용 대표 이미지, 클릭을 유도하는 매력적인 디자인, 고해상도, 리얼리스틱"
+        
         html = build_html(title, meta_description, meta_keywords, body_html)
-        return {"html": html, "summary": summary, "title": title, "image_prompts": image_prompts}
+        return {
+            "html": html,
+            "summary": summary,
+            "title": title,
+            "image_prompts": image_prompts,
+            "cta_text": cta_text,
+            "seo_title_length": len(title),
+            "meta_description_length": len(meta_description)
+        }
 
     try:
         data2 = json.loads(raw.strip())

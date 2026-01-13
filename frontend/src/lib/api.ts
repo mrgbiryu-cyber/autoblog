@@ -172,3 +172,76 @@ export async function fetchBlogAnalysis(params?: { blog_id?: number; blog_url?: 
   return await response.json();
 }
 
+export async function publishPostManual(postId: number): Promise<{ status: string; url?: string; message?: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/posts/${postId}/publish`, {
+    method: "POST",
+    headers: buildHeaders(),
+  });
+  if (!response.ok) {
+    let detail = "Publish API error";
+    try {
+      const err = await response.json();
+      detail = err?.detail || detail;
+    } catch {
+      // ignore
+    }
+    throw new Error(detail);
+  }
+  return await response.json();
+}
+
+export type RechargeRequestPayload = {
+  amount: number;
+  requested_credits: number;
+  depositor_name: str;
+};
+
+export async function createRechargeRequest(payload: RechargeRequestPayload): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/credits/recharge/request`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error("Recharge request failed");
+  }
+  return await response.json();
+}
+
+export async function fetchRechargeHistory(): Promise<any[]> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/credits/recharge/history`, {
+    headers: buildHeaders(),
+  });
+  return await response.json();
+}
+
+export async function fetchPendingPayments(): Promise<any[]> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/credits/pending-payments`, {
+    headers: buildHeaders(),
+  });
+  return await response.json();
+}
+
+export async function confirmPayment(requestId: number, approve: boolean): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/credits/confirm-payment`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify({ request_id: requestId, approve }),
+  });
+  if (!response.ok) {
+    throw new Error("Payment confirmation failed");
+  }
+  return await response.json();
+}
+
+export async function trackPost(postId: number): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/posts/${postId}/track`, {
+    method: "POST",
+    headers: buildHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error("Tracking request failed");
+  }
+  return await response.json();
+}
+

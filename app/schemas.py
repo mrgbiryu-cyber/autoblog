@@ -60,7 +60,9 @@ class PostStatusResponse(BaseModel):
     status: str
     published_url: str | None
     view_count: int
-    keyword_ranks: dict
+    keyword_ranks: dict | None
+    tracking_status: str | None
+    last_tracked_at: datetime | None
     created_at: datetime
 
     class Config:

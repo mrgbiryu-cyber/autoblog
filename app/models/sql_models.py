@@ -139,6 +139,16 @@ class Post(Base):
     keyword_ranks = Column(JSON, nullable=True)  # {"keyword": {"rank": 3, "change": 1, ...}, ...} 또는 자유 형식
     image_paths = Column(JSON, nullable=True)  # ["/generated_images/..png", ...]
 
+    # TO-BE: SEO 최적화 필드
+    seo_title_length = Column(Integer, nullable=True)
+    meta_description_length = Column(Integer, nullable=True)
+    cta_text = Column(String, nullable=True)
+    thumbnail_url = Column(String, nullable=True)
+    
+    # [추가] 트래킹 관련
+    tracking_status = Column(String, nullable=True, default="PENDING")
+    last_tracked_at = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True), default=func.now())
 
 
@@ -151,3 +161,49 @@ class Knowledge(Base):
     content = Column(Text)
     source_url = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), default=func.now())
+
+
+# 8. [TO-BE] 키워드 큐 (순환 로직)
+class KeywordQueue(Base):
+    __tablename__ = "keyword_queue"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    keyword = Column(String, nullable=False)
+    priority = Column(Integer, default=0)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=func.now())
+
+    user = relationship("User")
+
+
+# 9. [TO-BE] 이미지 생성 큐
+class ImageQueue(Base):
+    __tablename__ = "image_queue"
+
+    id = Column(Integer, primary_key=True, index=True)
+    post_id = Column(Integer, ForeignKey("posts.id"))
+    prompt = Column(Text, nullable=False)
+    status = Column(String, default="PENDING")  # PENDING, PROCESSING, COMPLETED, FAILED
+    image_url = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=func.now())
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    post = relationship("Post")
+
+
+# 10. [신규] 결제/충전 요청 (수동 확인용)
+class PaymentRequest(Base) :
+    __tablename__ = "payment_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    amount = Column(Integer, nullable=False) # 입금 금액 (원)
+    requested_credits = Column(Integer, nullable=False) # 요청 크레딧
+    status = Column(String, default="PENDING") # PENDING, COMPLETED, CANCELLED
+    depositor_name = Column(String, nullable=True) # 입금자명
+    created_at = Column(DateTime(timezone=True), default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), default=func.now())
+
+    user = relationship("User")

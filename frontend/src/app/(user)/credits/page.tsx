@@ -1,0 +1,214 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { CreditCard, ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { createRechargeRequest, fetchRechargeHistory, buildHeaders } from "@/lib/api";
+
+const RECHARGE_OPTIONS = [
+  { amount: 10000, credits: 1000, label: "1,000 Credits" },
+  { amount: 30000, credits: 3500, label: "3,500 Credits (15% Bonus)", popular: true },
+  { amount: 50000, credits: 6000, label: "6,000 Credits (20% Bonus)" },
+  { amount: 100000, credits: 13000, label: "13,000 Credits (30% Bonus)" },
+];
+
+export default function CreditRecharge() {
+  const [selectedOption, setSelectedOption] = useState(RECHARGE_OPTIONS[1]);
+  const [depositorName, setDepositorName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  const loadHistory = async () => {
+    try {
+      const data = await fetchRechargeHistory();
+      setHistory(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleTossPay = () => {
+    // 토스 송금 딥링크 (예시 구조: toss://send?amount=...&bank=...&account=...)
+    // 실제로는 토스 내계좌 송금 서비스 등에 맞춰 구성하거나, 단순 앱 오픈 유도
+    const tossUrl = `supertoss://send?amount=${selectedOption.amount}&bank=국민&account=1234567890&memo=AI블로그`;
+    window.location.href = tossUrl;
+  };
+
+  const handleKakaoPay = () => {
+    // 카카오페이 송금 딥링크
+    const kakaoUrl = `kakaotalk://kakaopay/money/to/qr?qr_code=...`; // 실제 QR 기반 또는 송금 링크
+    // 단순 송금 링크 예시
+    const kakaoTransferUrl = `https://qr.kakaopay.com/281006011000000000000000`; // 예시 QR URL
+    window.open(kakaoTransferUrl, "_blank");
+  };
+
+  const handleRequestConfirm = async () => {
+    if (!depositorName.trim()) {
+      alert("입금자명을 입력해주세요.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await createRechargeRequest({
+        amount: selectedOption.amount,
+        requested_credits: selectedOption.credits,
+        depositor_name: depositorName
+      });
+      setSuccess(true);
+      setDepositorName("");
+      loadHistory();
+    } catch (e) {
+      alert("요청 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
+      <div className="max-w-3xl mx-auto space-y-8">
+        <header className="flex items-center gap-4">
+          <Link href="/dashboard" className="p-2 hover:bg-slate-900 rounded-full transition">
+            <ArrowLeft className="w-6 h-6" />
+          </Link>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <CreditCard className="w-8 h-8 text-cyan-400" />
+            크레딧 충전
+          </h1>
+        </header>
+
+        <section className="bg-slate-900 rounded-3xl border border-slate-800 p-8 space-y-8">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {RECHARGE_OPTIONS.map((option) => (
+              <button
+                key={option.amount}
+                onClick={() => setSelectedOption(option)}
+                className={`relative p-6 rounded-2xl border-2 transition text-left ${
+                  selectedOption.amount === option.amount
+                    ? "border-cyan-500 bg-cyan-500/10"
+                    : "border-slate-800 bg-slate-950 hover:border-slate-600"
+                }`}
+              >
+                {option.popular && (
+                  <span className="absolute -top-3 right-4 bg-cyan-500 text-slate-950 text-[10px] font-bold px-2 py-1 rounded-full uppercase">
+                    Popular
+                  </span>
+                )}
+                <p className="text-sm text-slate-400">{option.label}</p>
+                <p className="text-2xl font-bold mt-1">
+                  ₩{option.amount.toLocaleString()}
+                </p>
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-6">
+            <div className="p-6 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+              <h3 className="font-semibold text-lg">1단계: 아래 계좌로 송금하기</h3>
+              <div className="flex items-center justify-between p-4 bg-slate-900 rounded-xl border border-slate-800">
+                <div>
+                  <p className="text-xs text-slate-500 uppercase">입금 계좌</p>
+                  <p className="font-mono text-lg">국민은행 123456-78-901234</p>
+                  <p className="text-sm text-slate-300">예금주: (주)안티그래비티</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={handleTossPay}
+                    className="px-4 py-2 bg-[#0050FF] text-white rounded-lg text-sm font-bold hover:opacity-90 transition"
+                  >
+                    토스 송금
+                  </button>
+                  <button
+                    onClick={handleKakaoPay}
+                    className="px-4 py-2 bg-[#FEE500] text-black rounded-lg text-sm font-bold hover:opacity-90 transition"
+                  >
+                    카카오페이
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs text-slate-500">
+                * 위 버튼을 누르면 해당 뱅킹 앱으로 바로 연결됩니다.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+              <h3 className="font-semibold text-lg">2단계: 입금 확인 요청하기</h3>
+              <div className="space-y-4">
+                <label className="block space-y-2">
+                  <span className="text-sm text-slate-400">실제 입금자 성함</span>
+                  <input
+                    type="text"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 focus:border-cyan-500 focus:outline-none"
+                    placeholder="입금하신 분의 성함을 입력해주세요"
+                    value={depositorName}
+                    onChange={(e) => setDepositorName(e.target.value)}
+                  />
+                </label>
+                <button
+                  onClick={handleRequestConfirm}
+                  disabled={loading || !depositorName}
+                  className="w-full py-4 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-400 disabled:opacity-50 transition"
+                >
+                  {loading ? "요청 중..." : "입금 확인 요청 완료"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {success && (
+            <div className="flex items-center gap-3 p-4 bg-emerald-500/20 border border-emerald-500/50 rounded-xl text-emerald-400">
+              <CheckCircle2 className="w-5 h-5" />
+              <p className="text-sm">입금 확인 요청이 전송되었습니다. 관리자 확인 후 크레딧이 즉시 지급됩니다.</p>
+            </div>
+          )}
+        </section>
+
+        <section className="bg-slate-900 rounded-3xl border border-slate-800 p-8 space-y-6">
+          <h2 className="text-xl font-semibold">충전 내역</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="text-slate-500 border-b border-slate-800">
+                  <th className="pb-3">일시</th>
+                  <th className="pb-3">금액</th>
+                  <th className="pb-3">크레딧</th>
+                  <th className="pb-3">상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-slate-600">내역이 없습니다.</td>
+                  </tr>
+                ) : (
+                  history.map((item) => (
+                    <tr key={item.id} className="border-b border-slate-800">
+                      <td className="py-4 text-slate-400">{new Date(item.created_at).toLocaleDateString()}</td>
+                      <td className="py-4">₩{item.amount.toLocaleString()}</td>
+                      <td className="py-4">{item.requested_credits.toLocaleString()} C</td>
+                      <td className="py-4">
+                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${
+                          item.status === "COMPLETED" ? "bg-emerald-500/20 text-emerald-400" :
+                          item.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" :
+                          "bg-slate-800 text-slate-500"
+                        }`}>
+                          {item.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+

@@ -2,13 +2,14 @@ import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware  # [추가1] 이거 필요합니다
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import asyncio
 
-from app.core.database import init_db  # [추가]
-from app.api.v1 import auth, blogs, posts, config, dashboard  # config router
+from app.core.database import init_db
+# TO-BE: keywords 라우터 추가
+from app.api.v1 import auth, blogs, posts, config, dashboard, keywords, admin, credits
 
 # 우리가 만든 에이전트들 임포트
 from app.agents.knowledge import KnowledgeAgent
@@ -19,10 +20,7 @@ from app.agents.reviewer import ReviewerAgent
 
 app = FastAPI(title="Anti-Gravity Blog Engine")
 
-# [추가2] CORS 미들웨어 설정 (프론트 배포/로컬 모두 지원하도록 env로 제어)
-# 예)
-# - CORS_ALLOW_ORIGINS="http://localhost:3000,https://your-frontend-domain.com"
-# - CORS_ALLOW_ORIGIN_REGEX="https?://.*\\.your-frontend-domain\\.com"
+# CORS 미들웨어 설정
 cors_allow_origins = [o.strip() for o in os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
 cors_allow_origin_regex = os.getenv("CORS_ALLOW_ORIGIN_REGEX") or None
 app.add_middleware(
@@ -34,8 +32,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 생성된 이미지 폴더 정적 서빙 (posts/preview에서 반환하는 /generated_images/... 경로 대응)
-# TO-BE: GCP 서버가 직접 서빙할 수 있도록 static/generated_images 로 저장/서빙 경로를 고정합니다.
+# 생성된 이미지 폴더 정적 서빙
 static_generated_dir = Path("static") / "generated_images"
 static_generated_dir.mkdir(parents=True, exist_ok=True)
 app.mount(
@@ -44,15 +41,18 @@ app.mount(
     name="generated_images",
 )
 
-# [중요] 서버 시작 시 DB 테이블 자동 생성
+# 서버 시작 시 DB 테이블 자동 생성
 init_db()
 
-# [중요] 라우터 등록 (auth API 연결)
+# 라우터 등록
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(blogs.router, prefix="/api/v1/blogs", tags=["blogs"])
 app.include_router(posts.router, prefix="/api/v1/posts", tags=["posts"])
 app.include_router(config.router, prefix="/api/v1/config", tags=["config"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
+app.include_router(keywords.router, prefix="/api/v1/keywords", tags=["keywords"])  # TO-BE
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])  # TO-BE
+app.include_router(credits.router, prefix="/api/v1/credits", tags=["credits"])
 
 # 요청 받을 데이터 모델
 class TopicRequest(BaseModel):
@@ -81,7 +81,7 @@ async def generate_post_workflow(request: TopicRequest):
         # Step 2: 초안 작성 (Agent 2)
         draft = await agent2.write_content(topic_data, request.persona)
 
-        # Step 2.5: Reviewer 1차 검수 (금칙 문구/이미지 프롬프트 정합성)
+        # Step 2.5: Reviewer 1차 검수
         topic_title = topic_data.get("topic", request.category)
         review1 = reviewer.review_writer_output(draft, topic_title)
         if review1.cleaned_content is not None:
@@ -89,9 +89,8 @@ async def generate_post_workflow(request: TopicRequest):
         if review1.cleaned_image_prompts is not None:
             draft["image_prompts"] = review1.cleaned_image_prompts
         
-        # Step 3: SEO 검수 및 수정 루프 (Agent 3 <-> Agent 2)
-        # [핵심] 여기가 형님이 찾으시던 '재수정 로직'입니다.
-        max_retries = 2  # 무한 루프 방지를 위해 최대 2번만 수정 기회 부여
+        # Step 3: SEO 검수 및 수정 루프
+        max_retries = 2
         current_retry = 0
         
         while current_retry < max_retries:
@@ -99,9 +98,8 @@ async def generate_post_workflow(request: TopicRequest):
             
             if seo_result.get("pass", False):
                 print(f"✅ SEO Passed! (Score: {seo_result['score']})")
-                break # 합격하면 루프 탈출
+                break
             
-            # 불합격 시 수정 요청
             print(f"⚠️ SEO Failed (Score: {seo_result['score']}). Requesting Rewrite {current_retry + 1}/{max_retries}...")
             print(f"   Feedback: {seo_result['feedback']}")
             
@@ -111,11 +109,11 @@ async def generate_post_workflow(request: TopicRequest):
         if not seo_result.get("pass", False):
             print("🚫 SEO Failed eventually, but publishing anyway (Time constraint).")
 
-        # Step 4: 배포 및 후처리 (Agent 4)
+        # Step 4: 배포 및 후처리
         blog_config = {"platform_type": "Naver", "user_id": request.user_id, "ad_client_id": "demo-client"}
         final_result = await agent4.execute(draft, blog_config)
 
-        # Step 4.5: Reviewer 최종 정제 (HTML에서 금칙 문구/불필요 요소 제거)
+        # Step 4.5: Reviewer 최종 정제
         if isinstance(final_result, dict) and final_result.get("html"):
             review2 = reviewer.review_final_html(final_result["html"])
             if review2.cleaned_html:

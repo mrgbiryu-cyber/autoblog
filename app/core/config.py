@@ -31,5 +31,9 @@ class Settings:
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
+    # inblog API
+    INBLOG_API_KEY: str = os.getenv("INBLOG_API_KEY", "")
+    INBLOG_WRITER_ID: str = os.getenv("INBLOG_WRITER_ID", "")
+
 
 settings = Settings()

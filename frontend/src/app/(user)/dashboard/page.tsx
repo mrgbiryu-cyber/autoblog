@@ -2,9 +2,11 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, CreditCard, Copy, Eye, Loader2, Shield } from "lucide-react";
+import { Bot, CreditCard, Copy, Eye, Loader2, Shield, Search } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import KeywordSearchModal from "@/components/KeywordSearchModal";
+import DimLoadingPopup from "@/components/DimLoadingPopup";
 import {
   fetchBlogAnalysis,
   buildHeaders,
@@ -18,6 +20,8 @@ import {
   SchedulePayload,
   PreviewRequest,
   PreviewResponse,
+  publishPostManual,
+  trackPost,
 } from "../../../lib/api";
 // NOTE: 기존에는 유저 공통 설정(`/config/blog-settings`)에 저장했지만,
 // 현재 UX 요구사항은 "블로그별"로 category/prompt/persona/wordRange/imageCount가 저장되어야 합니다.
@@ -77,6 +81,10 @@ export default function Dashboard() {
   });
   const [selectedBlogId, setSelectedBlogId] = useState<number | null>(null);
   const [selectedCreateSlotIdx, setSelectedCreateSlotIdx] = useState<number | null>(null);
+  const [keywordSearchOpen, setKeywordSearchOpen] = useState(false);
+  const [dimLoadingOpen, setDimLoadingOpen] = useState(false);
+  const [dimLoadingStatus, setDimLoadingStatus] = useState<"loading" | "success" | "error">("loading");
+  const [dimLoadingLogs, setDimLoadingLogs] = useState<string[]>([]);
   const selectedBlog = blogs.find((blog) => blog.id === selectedBlogId);
   const [generateResult, setGenerateResult] = useState<PreviewResponse | null>(null);
 
@@ -197,12 +205,21 @@ export default function Dashboard() {
         <div className="grid gap-4 md:grid-cols-3">
           <label className="space-y-2 text-sm text-slate-300">
             관심 주제 입력
-            <input
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="예: AI 마케팅 자동화, 노코드 리드 생성"
-            />
+            <div className="flex gap-2">
+                <input
+                className="flex-1 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder="예: AI 마케팅 자동화, 노코드 리드 생성"
+                />
+                <button
+                    onClick={() => setKeywordSearchOpen(true)}
+                    className="p-3 rounded-2xl border border-slate-700 bg-slate-900 hover:border-cyan-400 text-slate-300 transition"
+                    title="키워드 리서치"
+                >
+                    <Search className="w-5 h-5" />
+                </button>
+            </div>
           </label>
           <label className="space-y-2 text-sm text-slate-300">
             페르소나 입력
@@ -574,7 +591,10 @@ export default function Dashboard() {
 
   const handlePreview = async (freeTrial = false) => {
     setPreviewLoading(true);
-    setStatusMessages((prev: string[]) => [...prev, freeTrial ? "무료 체험 HTML을 요청합니다..." : "미리보기 AI 엔진을 실행합니다..."]);
+    setDimLoadingOpen(true);
+    setDimLoadingStatus("loading");
+    setDimLoadingLogs([freeTrial ? "무료 체험 HTML을 요청합니다..." : "미리보기 AI 엔진을 실행합니다..."]);
+    
     try {
     const previewPayload: PreviewRequest = {
       topic,
@@ -588,7 +608,10 @@ export default function Dashboard() {
       setPreviewHtml(preview.html);
       setGenerateResult(preview);
       setModalOpen(true);
+      setDimLoadingLogs((prev) => [...prev, "AI 엔진이 HTML 초안 생성을 완료했습니다."]);
+
       if (preview.status === "processing" && preview.images && preview.images.length) {
+        setDimLoadingLogs((prev) => [...prev, "백그라운드에서 이미지 생성을 시작합니다..."]);
         // 백엔드가 HTML 먼저 반환하고, 이미지는 백그라운드로 생성됨
         setImageTotal(preview.images.length);
         setCompletedImages(0);
@@ -611,33 +634,33 @@ export default function Dashboard() {
           const done = checks.filter(Boolean).length;
           setCompletedImages(done);
           setImageCards(urls.map((u, idx) => ({ id: idx + 1, src: checks[idx] ? u : null })));
+          
+          if (done > 0) {
+            setDimLoadingLogs((prev) => {
+                const last = prev[prev.length - 1];
+                if (last.startsWith("이미지 생성 중")) {
+                    return [...prev.slice(0, -1), `이미지 생성 중 (${done}/${urls.length})...` ];
+                }
+                return [...prev, `이미지 생성 중 (${done}/${urls.length})...` ];
+            });
+          }
+
           if (done >= urls.length) {
             setImageStatus("completed");
+            setDimLoadingLogs((prev) => [...prev, "모든 이미지가 성공적으로 생성되었습니다!"]);
+            setDimLoadingStatus("success");
             return;
           }
-          setTimeout(poll, 1200);
+          setTimeout(poll, 1500);
         };
-        setTimeout(poll, 800);
-      } else if (preview.images && preview.images.length) {
-        // 즉시 완료(또는 fallback)
-        setImageCards(preview.images.map((src, idx) => ({ id: idx + 1, src })));
-        setImageTotal(preview.images.length);
-        setCompletedImages(preview.images.length);
-        setImageStatus("completed");
+        setTimeout(poll, 1000);
       } else {
-        setImageCards([]);
-        setImageTotal(0);
-        setCompletedImages(0);
-        setImageStatus("idle");
+        setDimLoadingStatus("success");
       }
-      setStatusMessages((prev: string[]) => [
-        ...prev,
-        "미리보기 HTML이 준비되었습니다.",
-        preview.credits_required ? `예상 크레딧 ${preview.credits_required}개` : "필요 크레딧이 계산되었습니다.",
-      ]);
     } catch (error) {
       console.error("Preview generation failed", error);
-      setStatusMessages((prev: string[]) => [...prev, `미리보기 생성에 실패했습니다: ${(error as Error).message}`]);
+      setDimLoadingStatus("error");
+      setDimLoadingLogs((prev) => [...prev, `오류 발생: ${(error as Error).message}`]);
     } finally {
       setPreviewLoading(false);
     }
@@ -850,6 +873,58 @@ export default function Dashboard() {
       anchor.click();
     });
     setStatusMessages((prev: string[]) => [...prev, "HTML 및 이미지 다운로드가 완료되었습니다."]);
+  };
+
+  const [publishLoading, setPublishLoading] = useState<number | null>(null);
+
+  const handlePublishManual = async (postId: number) => {
+    if (publishLoading) return;
+    setPublishLoading(postId);
+    setStatusMessages((prev) => [...prev, `포스트 #${postId} 발행을 시도합니다...`]);
+    try {
+      const result = await publishPostManual(postId);
+      if (result.status === "success") {
+        setStatusMessages((prev) => [...prev, `성공적으로 발행되었습니다! URL: ${result.url}`]);
+        // 포스팅 현황 새로고침
+        const res = await fetch(`${API_BASE_URL}/api/v1/posts/status`, {
+          headers: buildHeaders(),
+        });
+        if (res.ok) {
+          setPostsStatus(await res.json());
+        }
+      } else {
+        setStatusMessages((prev) => [...prev, `발행 실패: ${result.message}`]);
+      }
+    } catch (error: any) {
+      console.error("Publish failed", error);
+      setStatusMessages((prev) => [...prev, `발행 중 오류 발생: ${error.message}`]);
+    } finally {
+      setPublishLoading(null);
+    }
+  };
+
+  const [trackLoading, setTrackLoading] = useState<number | null>(null);
+
+  const handleTrackPost = async (postId: number) => {
+    if (trackLoading) return;
+    setTrackLoading(postId);
+    setStatusMessages((prev) => [...prev, `포스트 #${postId} 순위 추적을 시작합니다...`]);
+    try {
+      const result = await trackPost(postId);
+      setStatusMessages((prev) => [...prev, `순위 추적 완료: ${JSON.stringify(result.keyword_ranks)}`]);
+      // 데이터 갱신
+      const res = await fetch(`${API_BASE_URL}/api/v1/posts/status`, {
+        headers: buildHeaders(),
+      });
+      if (res.ok) {
+        setPostsStatus(await res.json());
+      }
+    } catch (error: any) {
+      console.error("Tracking failed", error);
+      setStatusMessages((prev) => [...prev, `순위 추적 중 오류 발생: ${error.message}`]);
+    } finally {
+      setTrackLoading(null);
+    }
   };
 
   const simulateImageGeneration = (total: number) => {
@@ -1087,8 +1162,8 @@ export default function Dashboard() {
                   <th className="pb-3 pr-6">키워드</th>
                   <th className="pb-3 pr-6">플랫폼</th>
                   <th className="pb-3 pr-6">순위</th>
-                  <th className="pb-3 pr-6">변동</th>
-                  <th className="pb-3 pr-6">업데이트</th>
+                  <th className="pb-3 pr-6">조회수</th>
+                  <th className="pb-3 pr-6">상태/트래킹</th>
                   <th className="pb-3">원문링크</th>
                 </tr>
               </thead>
@@ -1114,9 +1189,8 @@ export default function Dashboard() {
                         <td className="py-3 pr-6 text-cyan-300">
                           {post.keyword_ranks && Object.values(post.keyword_ranks).length ? (
                             (() => {
-                              const ranks = Object.values(post.keyword_ranks).filter(
-                                (value): value is number => typeof value === "number"
-                              );
+                              const values = Object.values(post.keyword_ranks);
+                              const ranks = values.map((v: any) => (typeof v === "number" ? v : v.rank)).filter(r => r > 0);
                               return ranks.length ? `${Math.min(...ranks)}위` : "-";
                             })()
                           ) : (
@@ -1124,16 +1198,61 @@ export default function Dashboard() {
                           )}
                         </td>
                         <td className="py-3 pr-6 text-slate-200">
-                          {post.keyword_ranks && Object.values(post.keyword_ranks).length ? "+0" : "집계 중"}
+                          {post.view_count.toLocaleString()}회
                         </td>
-                        <td className="py-3 pr-6 text-xs text-slate-500">{post.status}</td>
+                        <td className="py-3 pr-6 text-xs text-slate-500">
+                            <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-2">
+                                    <span>{post.status}</span>
+                                    {post.published_url && (
+                                        <button
+                                            onClick={() => handleTrackPost(post.id)}
+                                            disabled={trackLoading === post.id}
+                                            className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md text-[10px]"
+                                            title="순위 추적 업데이트"
+                                        >
+                                            {trackLoading === post.id ? "..." : "트래킹 시작"}
+                                        </button>
+                                    )}
+                                </div>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] w-fit ${
+                                    post.tracking_status === "COMPLETED" ? "bg-emerald-500/20 text-emerald-400" :
+                                    post.tracking_status === "TRACKING" ? "bg-cyan-500/20 text-cyan-400 animate-pulse" :
+                                    "bg-slate-800 text-slate-400"
+                                }`}>
+                                    {post.tracking_status || "PENDING"}
+                                </span>
+                            </div>
+                        </td>
                         <td className="py-3 text-slate-200">
-                          <Link
-                            href="/status"
-                            className="text-blue-300 hover:text-blue-500"
-                          >
-                            상세 보기
-                          </Link>
+                          <div className="flex items-center gap-2">
+                            {post.status !== "PUBLISHED" && (
+                                <button
+                                    onClick={() => handlePublishManual(post.id)}
+                                    disabled={publishLoading === post.id}
+                                    className="px-3 py-1 bg-cyan-500 text-slate-950 rounded-lg text-xs font-bold hover:bg-cyan-400 disabled:opacity-50"
+                                >
+                                    {publishLoading === post.id ? "발행 중..." : "즉시 발행"}
+                                </button>
+                            )}
+                            {post.published_url ? (
+                                <a
+                                    href={post.published_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-300 hover:text-blue-500 text-xs"
+                                >
+                                    원문 보기
+                                </a>
+                            ) : (
+                                <Link
+                                    href="/status"
+                                    className="text-slate-400 hover:text-slate-200 text-xs"
+                                >
+                                    상세 보기
+                                </Link>
+                            )}
+                 </div>
                         </td>
                       </tr>
                     ))
@@ -1185,6 +1304,19 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+
+      <KeywordSearchModal
+        isOpen={keywordSearchOpen}
+        onClose={() => setKeywordSearchOpen(false)}
+        onSelect={(selected) => setTopic(selected.join(", "))}
+      />
+
+      <DimLoadingPopup
+        isOpen={dimLoadingOpen}
+        logs={dimLoadingLogs}
+        status={dimLoadingStatus}
+        onClose={() => setDimLoadingOpen(false)}
+      />
     </div>
   );
 }

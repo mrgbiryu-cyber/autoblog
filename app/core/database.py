@@ -1,10 +1,13 @@
+import os
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 Base = declarative_base()
 
-# 로컬 개발용 SQLite (나중에 PostgreSQL로 주소만 바꾸면 됨)
-SQLALCHEMY_DATABASE_URL = "sqlite:///./sql_app.db"
+# 프로젝트 루트 기준 절대 경로로 SQLite DB 설정
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{PROJECT_ROOT}/sql_app.db"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}

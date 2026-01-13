@@ -5,63 +5,102 @@ from app.models import sql_models as models
 from app.agents.writer import WriterAgent
 from app.agents.publisher import PublisherAgent
 from app.agents.knowledge import KnowledgeAgent
-from app.agents.crawler import CrawlerAgent  # [신규] 크롤러
+from app.agents.crawler import CrawlerAgent
+# TO-BE: 키워드 큐 및 발행 API 연동
+from app.services.keyword_service import get_next_keyword, mark_keyword_used
+from app.services.publisher_api import publish_post
+from app.services.gemini_service import generate_html
+import logging
+
+LOGGER = logging.getLogger(__name__)
 
 
 async def generate_and_save_post(db: Session, user: models.User, config: models.BlogConfig):
-    print(f"   [Process Start] User {user.email} / Category: {config.default_category}")
+    """
+    TO-BE: 키워드 큐 기반 자동 포스팅 생성 및 발행
+    
+    1. 키워드 큐에서 다음 키워드 가져오기 (순환 로직)
+    2. Gemini로 SEO 최적화 콘텐츠 생성
+    3. 블로그 플랫폼 API로 자동 발행
+    4. 키워드 사용 처리
+    """
+    LOGGER.info(f"[Process Start] User {user.email} / Category: {config.default_category}")
+    
     target_blog = db.query(models.Blog).filter(models.Blog.owner_id == user.id).first()
     if not target_blog:
-        print(f"   [Error] No blog found for user {user.id}")
+        LOGGER.error(f"[Error] No blog found for user {user.id}")
         return
 
+    # 1. 키워드 큐에서 다음 키워드 가져오기
+    keyword = get_next_keyword(db, user.id)
+    if not keyword:
+        keyword = config.default_category or "최신 트렌드"
+        LOGGER.warning(f"키워드 큐가 비어있어 기본 카테고리 사용: {keyword}")
+    
+    LOGGER.info(f"[Keyword] 선택된 키워드: {keyword}")
+    
+    # 2. 크롤러로 최신 정보 수집 (선택)
     crawler = CrawlerAgent()
     knowledge_agent = KnowledgeAgent(db)
-    search_keyword = config.default_category or config.custom_prompt[:30] or "latest trends"
-    print(f"   [Crawler] Fetching latest trends for: {search_keyword}...")
     crawled_summary = ""
     try:
-        crawled_data = await crawler.fetch_latest_news(search_keyword)
-        crawled_summary = await knowledge_agent.update_ontology(search_keyword, crawled_data)
-        print(f"   [Crawler] Updated ontology with new facts.")
+        crawled_data = await crawler.fetch_latest_news(keyword)
+        crawled_summary = await knowledge_agent.update_ontology(keyword, crawled_data)
+        LOGGER.info("[Crawler] 온톨로지 업데이트 완료")
     except Exception as e:
-        print(f"   [Crawler Error] {e}")
-
-    query = search_keyword
-    print(f"   [Ontology] Retrieving context for: {query}...")
-    ontology_context = await knowledge_agent.search_ontology(query=query)
+        LOGGER.warning(f"[Crawler Error] {e}")
+    
+    # 3. Gemini로 SEO 최적화 콘텐츠 생성
+    ontology_context = await knowledge_agent.search_ontology(query=keyword)
     full_context = f"{crawled_summary}\n{ontology_context}"
-
-    full_prompt = (
-        f"Topic Category: {config.default_category}\n"
-        f"User Instruction: {config.custom_prompt}\n"
-        f"\n[Latest Facts & Context from Ontology]:\n{full_context}\n"
-        f"Target Length: {config.post_length} (Detailed and rich content)\n"
-        "Task: Write a blog post incorporating the latest information provided above."
-    )
-
-    writer = WriterAgent()
+    
+    custom_prompt = config.custom_prompt or f"{keyword} 주제로 SEO 최적화 블로그 글을 작성하세요."
+    word_range = target_blog.word_range or {"min": 800, "max": 1200}
+    image_count = target_blog.image_count or config.image_count or 3
+    
     try:
-        generated_content = await writer.generate(prompt=full_prompt)
-
-        image_url = None
-        if config.image_count and config.image_count > 0:
-            print(f"   [Image] Generating {config.image_count} placeholder image(s)...")
-            image_url = "https://via.placeholder.com/800x400"
-
+        html_result = await generate_html(
+            topic=keyword,
+            persona=target_blog.persona or "전문 블로거",
+            prompt=custom_prompt,
+            word_count_range=(word_range.get("min", 800), word_range.get("max", 1200)),
+            image_count=image_count,
+            keywords=[keyword]
+        )
+        
+        # 4. DB에 포스트 저장
         new_post = models.Post(
             blog_id=target_blog.id,
-            title=generated_content.get("title", "Untitled Auto Post"),
-            content=generated_content.get("content", ""),
+            title=html_result.get("title", "Untitled Auto Post"),
+            content=html_result.get("html", ""),
             status="DRAFT",
+            seo_title_length=html_result.get("seo_title_length"),
+            meta_description_length=html_result.get("meta_description_length"),
+            cta_text=html_result.get("cta_text")
         )
         db.add(new_post)
         db.commit()
-        print(f"   [Success] Post created: ID {new_post.id} / Title: {new_post.title}")
-        # PublisherAgent could be used here to publish immediately if needed
+        db.refresh(new_post)
+        LOGGER.info(f"[Post Created] ID {new_post.id} / Title: {new_post.title}")
+        
+        # 5. 블로그 플랫폼 API로 자동 발행
+        try:
+            publish_result = await publish_post(target_blog, html_result)
+            new_post.status = "PUBLISHED"
+            new_post.published_url = publish_result.get("url")
+            db.commit()
+            LOGGER.info(f"[Published] {publish_result.get('platform')}: {publish_result.get('url')}")
+        except Exception as e:
+            LOGGER.error(f"[Publish Failed] {e}")
+            new_post.status = "PUBLISH_FAILED"
+            db.commit()
+        
+        # 6. 키워드 사용 처리
+        mark_keyword_used(db, user.id, keyword)
+        
     except Exception as e:
         db.rollback()
-        print(f"   [Fail] AI Generation failed: {str(e)}")
+        LOGGER.error(f"[Fail] AI Generation failed: {str(e)}")
 
 
 def process_scheduled_tasks(db: Session):

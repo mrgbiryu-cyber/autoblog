@@ -1,6 +1,7 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Tuple
+from datetime import datetime
 
 from app.core.database import get_db
 from app.models import sql_models as models
@@ -12,6 +13,8 @@ from pydantic import BaseModel
 from app.services.credit_service import calculate_required_credits
 from app.services.gemini_service import generate_html
 from app.services.image_service import WORKFLOW_PATH, generate_image_sync, save_image_bytes
+from app.services.tracking_service import tracking_service
+from app.services.publisher_api import publish_post
 from app.agents.reviewer import sanitize_final_html, validate_and_fix_image_prompts
 import logging
 import os
@@ -190,6 +193,77 @@ async def generate_post_with_images(
     }
 
 
+@router.post("/{post_id}/publish")
+async def publish_manual_post(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    특정 포스트를 해당 블로그 플랫폼에 즉시 발행합니다.
+    """
+    post = db.query(Post).join(Blog).filter(Post.id == post_id, Blog.owner_id == current_user.id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="포스트를 찾을 수 없습니다.")
+
+    if post.status == "PUBLISHED":
+        raise HTTPException(status_code=400, detail="이미 발행된 포스트입니다.")
+
+    blog = post.blog
+    # 발행에 필요한 데이터 구성
+    html_result = {
+        "title": post.title,
+        "html": post.content,
+        "thumbnail_url": post.thumbnail_url,
+        "images": post.image_paths
+    }
+
+    try:
+        result = await publish_post(blog, html_result)
+        
+        if result.get("status") == "published":
+            post.status = "PUBLISHED"
+            post.published_url = result.get("url")
+            post.published_at = datetime.now()
+            db.commit()
+            return {"status": "success", "url": post.published_url}
+        else:
+            return {"status": "failed", "message": result.get("message", "발행 실패")}
+            
+    except Exception as e:
+        LOGGER.exception(f"Manual publish failed for post {post_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"발행 실패: {str(e)}")
+
+
+@router.post("/{post_id}/track")
+async def trigger_post_tracking(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    특정 포스트의 순위 트래킹을 수동으로 트리거합니다.
+    """
+    post = db.query(Post).join(Blog).filter(Post.id == post_id, Blog.owner_id == current_user.id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="포스트를 찾을 수 없습니다.")
+    
+    if not post.published_url:
+        raise HTTPException(status_code=400, detail="발행된 URL이 없어 트래킹할 수 없습니다.")
+
+    post.tracking_status = "TRACKING"
+    db.commit()
+    
+    # 실제 트래킹 시작
+    await tracking_service.update_post_tracking(db, post_id)
+    
+    post.tracking_status = "COMPLETED"
+    post.last_tracked_at = datetime.now()
+    db.commit()
+    
+    return {"status": "ok", "keyword_ranks": post.keyword_ranks}
+
+
 @router.get("/keywords")
 def get_keyword_tracking(
     db: Session = Depends(get_db),
@@ -197,14 +271,12 @@ def get_keyword_tracking(
 ):
     """
     키워드 트래킹 테이블용 최소 엔드포인트.
-    TODO: 실제 검색엔진 순위 수집/변동 로직 연동 전까지는 저장된 post.keyword_ranks 기반 또는 빈 배열을 반환합니다.
     """
     blogs = db.query(Blog).options(joinedload(Blog.posts)).filter(Blog.owner_id == current_user.id).all()
     rows: list[dict] = []
     for blog in blogs:
         for post in blog.posts:
             ranks = post.keyword_ranks or {}
-            # ranks가 {"키워드": {"rank": 3, "change": 1, "updated_at": "...", "url": "..."}} 형태라고 가정
             for keyword, meta in ranks.items():
                 if isinstance(meta, dict):
                     rows.append(
@@ -217,4 +289,3 @@ def get_keyword_tracking(
                         }
                     )
     return rows
-
