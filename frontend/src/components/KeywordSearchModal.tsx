@@ -13,7 +13,7 @@ interface Keyword {
 interface KeywordSearchModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSelect: (keywords: string[]) => void;
+    onSelect: (keywords: {keyword: string, search_volume: number}[]) => void;
 }
 
 export default function KeywordSearchModal({
@@ -23,7 +23,7 @@ export default function KeywordSearchModal({
 }: KeywordSearchModalProps) {
     const [seedKeyword, setSeedKeyword] = useState("");
     const [keywords, setKeywords] = useState<Keyword[]>([]);
-    const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(new Set());
+    const [selectedKeywords, setSelectedKeywords] = useState<Map<string, number>>(new Map());
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
@@ -62,23 +62,27 @@ export default function KeywordSearchModal({
         }
     };
 
-    const toggleKeyword = (keyword: string) => {
-        const newSelected = new Set(selectedKeywords);
-        if (newSelected.has(keyword)) {
-            newSelected.delete(keyword);
+    const toggleKeyword = (kw: Keyword) => {
+        const newSelected = new Map(selectedKeywords);
+        if (newSelected.has(kw.keyword)) {
+            newSelected.delete(kw.keyword);
         } else {
-            newSelected.add(keyword);
+            newSelected.set(kw.keyword, kw.monthly_search);
         }
         setSelectedKeywords(newSelected);
     };
 
     const handleConfirm = () => {
-        onSelect(Array.from(selectedKeywords));
+        const results = Array.from(selectedKeywords.entries()).map(([keyword, search_volume]) => ({
+            keyword,
+            search_volume
+        }));
+        onSelect(results);
         onClose();
         // 초기화
         setSeedKeyword("");
         setKeywords([]);
-        setSelectedKeywords(new Set());
+        setSelectedKeywords(new Map());
     };
 
     if (!isOpen) return null;
@@ -104,7 +108,7 @@ export default function KeywordSearchModal({
                             type="text"
                             value={seedKeyword}
                             onChange={(e) => setSeedKeyword(e.target.value)}
-                            onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+                            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                             placeholder="시드 키워드 입력 (예: AI 마케팅)"
                             className="flex-1 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
                         />
@@ -155,7 +159,7 @@ export default function KeywordSearchModal({
                                         <input
                                             type="checkbox"
                                             checked={selectedKeywords.has(kw.keyword)}
-                                            onChange={() => toggleKeyword(kw.keyword)}
+                                            onChange={() => toggleKeyword(kw)}
                                             className="w-5 h-5 rounded border-slate-700 text-cyan-500 focus:ring-cyan-500"
                                         />
                                         <div>
@@ -168,7 +172,7 @@ export default function KeywordSearchModal({
                                 </label>
                             ))}
                         </div>
-                    )}
+                    ) }
                 </div>
 
                 {/* Footer */}

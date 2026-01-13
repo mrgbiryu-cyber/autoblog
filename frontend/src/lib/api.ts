@@ -43,6 +43,7 @@ export type PreviewRequest = {
   image_count?: number;
   custom_prompt?: string;
   word_count_range?: [number, number];
+  keywords?: string[];
 };
 
 export type PreviewResponse = {
@@ -250,6 +251,70 @@ export async function trackPost(postId: number): Promise<any> {
   if (!response.ok) {
     throw new Error("Tracking request failed");
   }
+  return await response.json();
+}
+
+// Plan Management
+export async function fetchAllPlansAdmin(): Promise<any[]> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/plans`, {
+    headers: buildHeaders(),
+  });
+  return await response.json();
+}
+
+export async function createPlanAdmin(payload: any): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/plans`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return await response.json();
+}
+
+export async function updatePlanAdmin(planId: number, payload: any): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/plans/${planId}`, {
+    method: "PUT",
+    headers: buildHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return await response.json();
+}
+
+export async function deletePlanAdmin(planId: number): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/plans/${planId}`, {
+    method: "DELETE",
+    headers: buildHeaders(),
+  });
+  return await response.json();
+}
+
+export async function fetchActivePlans(): Promise<any[]> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/credits/plans`, {
+    headers: buildHeaders(),
+  });
+  return await response.json();
+}
+
+export async function fetchSystemConfigPublic(): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/credits/config`, {
+    headers: buildHeaders(),
+  });
+  return await response.json();
+}
+
+export async function fetchSystemConfigAdmin(): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/config`, {
+    headers: buildHeaders(),
+  });
+  return await response.json();
+}
+
+export async function updateSystemConfigAdmin(payload: any): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/config`, {
+    method: "PUT",
+    headers: buildHeaders(),
+    body: JSON.stringify(payload),
+  });
   return await response.json();
 }
 

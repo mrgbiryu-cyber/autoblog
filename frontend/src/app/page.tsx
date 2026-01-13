@@ -25,13 +25,10 @@ export default function LandingPage() {
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-            <Link href="/dashboard" className="w-full sm:w-auto px-8 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 shadow-lg hover:shadow-blue-500/30 transition transform hover:-translate-y-1 flex items-center justify-center">
-              <Rocket className="w-5 h-5 mr-2" />
-              무료로 시작하기
+            <Link href="/login?mode=signup" className="w-full sm:w-auto px-8 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 shadow-lg hover:shadow-blue-500/30 transition transform hover:-translate-y-1 flex items-center justify-center">
+              <Bot className="w-5 h-5 mr-2" />
+              Email 가입
             </Link>
-            <a href="#demo" className="w-full sm:w-auto px-8 py-4 bg-gray-100 text-gray-700 rounded-xl font-bold text-lg hover:bg-gray-200 transition flex items-center justify-center">
-              데모 영상 보기
-            </a>
           </div>
           
           <p className="text-sm text-gray-400 mt-4">

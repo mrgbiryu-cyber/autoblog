@@ -9,11 +9,11 @@ import { CreditCard, History, X, ArrowUpRight, ArrowDownLeft } from "lucide-reac
 
 const mainMenu = [
   { label: "기능소개", href: "#features" },
-  { label: "요금제", href: "#pricing" },
+  { label: "요금제", href: "/credits" },
 ];
 
 const subMenu = [
-  { label: "요금제", href: "/pricing" },
+  { label: "요금제", href: "/credits" },
   { label: "대시보드", href: "/dashboard" },
   { label: "포스팅 현황", href: "/status" },
   { label: "HTML 생성", href: "/dashboard" },

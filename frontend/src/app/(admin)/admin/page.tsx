@@ -11,14 +11,24 @@ import {
     Save, 
     RefreshCcw,
     DollarSign,
-    AlertCircle,
+    CircleAlert,
     Check,
-    X
+    X,
+    Plus,
+    Trash2,
+    Building2,
+    LinkIcon
 } from "lucide-react";
 import { 
     buildHeaders, 
     fetchPendingPayments, 
-    confirmPayment 
+    confirmPayment,
+    fetchAllPlansAdmin,
+    createPlanAdmin,
+    updatePlanAdmin,
+    deletePlanAdmin,
+    fetchSystemConfigAdmin,
+    updateSystemConfigAdmin
 } from "@/lib/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://34.64.50.56";
@@ -45,6 +55,14 @@ export default function AdminDashboard() {
     const [stats, setStats] = useState<AdminStats | null>(null);
     const [policy, setPolicy] = useState<SystemPolicy | null>(null);
     const [pendingPayments, setPendingPayments] = useState<any[]>([]);
+    const [plans, setPlans] = useState<any[]>([]);
+    const [systemConfig, setSystemConfig] = useState({
+        bank_name: "",
+        account_number: "",
+        account_holder: "",
+        toss_link: "",
+        kakao_link: ""
+    });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -57,18 +75,32 @@ export default function AdminDashboard() {
     const [grantLoading, setGrantLoading] = useState(false);
     const [grantMessage, setGrantMessage] = useState("");
 
+    // 요금제 관리 상태
+    const [newPlan, setNewPlan] = useState({
+        name: "",
+        amount: 0,
+        credits: 0,
+        badge_text: "",
+        is_popular: false,
+        is_active: true
+    });
+
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [statsRes, policyRes, pendingRes] = await Promise.all([
+            const [statsRes, policyRes, pendingRes, plansRes, configRes] = await Promise.all([
                 fetch(`${API_BASE_URL}/api/v1/admin/stats`, { headers: buildHeaders() }),
                 fetch(`${API_BASE_URL}/api/v1/admin/policy`, { headers: buildHeaders() }),
-                fetchPendingPayments()
+                fetchPendingPayments(),
+                fetchAllPlansAdmin(),
+                fetchSystemConfigAdmin()
             ]);
 
             if (statsRes.ok) setStats(await statsRes.json());
             if (policyRes.ok) setPolicy(await policyRes.json());
             setPendingPayments(pendingRes || []);
+            setPlans(plansRes || []);
+            if (configRes) setSystemConfig(configRes);
         } catch (err) {
             setError("데이터를 불러오는데 실패했습니다.");
         } finally {
@@ -132,6 +164,55 @@ export default function AdminDashboard() {
             fetchData();
         } catch (err) {
             alert("처리에 실패했습니다.");
+        }
+    };
+
+    const handleCreatePlan = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            await createPlanAdmin(newPlan);
+            alert("요금제가 추가되었습니다.");
+            setNewPlan({
+                name: "",
+                amount: 0,
+                credits: 0,
+                badge_text: "",
+                is_popular: false,
+                is_active: true
+            });
+            fetchData();
+        } catch (err) {
+            alert("추가에 실패했습니다.");
+        }
+    };
+
+    const handleDeletePlan = async (planId: number) => {
+        if (!confirm("정말 삭제하시겠습니까?")) return;
+        try {
+            await deletePlanAdmin(planId);
+            fetchData();
+        } catch (err) {
+            alert("삭제에 실패했습니다.");
+        }
+    };
+
+    const handleTogglePlanActive = async (plan: any) => {
+        try {
+            await updatePlanAdmin(plan.id, { is_active: !plan.is_active });
+            fetchData();
+        } catch (err) {
+            alert("변경에 실패했습니다.");
+        }
+    };
+
+    const handleUpdateSystemConfig = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            await updateSystemConfigAdmin(systemConfig);
+            alert("시스템 설정이 저장되었습니다.");
+            fetchData();
+        } catch (err) {
+            alert("저장에 실패했습니다.");
         }
     };
 
@@ -246,6 +327,204 @@ export default function AdminDashboard() {
                             </button>
                         </form>
                     )}
+                </div>
+            </div>
+
+            {/* System Config (Bank Info, Links) */}
+            <div className="mt-8 bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-2 mb-6">
+                    <Building2 className="w-6 h-6 text-blue-500" />
+                    <h2 className="text-2xl font-bold">송금 및 계좌 정보 설정</h2>
+                </div>
+                <form onSubmit={handleUpdateSystemConfig} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">은행명</label>
+                        <input 
+                            type="text" 
+                            value={systemConfig.bank_name}
+                            onChange={e => setSystemConfig({...systemConfig, bank_name: e.target.value})}
+                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">계좌번호</label>
+                        <input 
+                            type="text" 
+                            value={systemConfig.account_number}
+                            onChange={e => setSystemConfig({...systemConfig, account_number: e.target.value})}
+                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">예금주</label>
+                        <input 
+                            type="text" 
+                            value={systemConfig.account_holder}
+                            onChange={e => setSystemConfig({...systemConfig, account_holder: e.target.value})}
+                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
+                            토스 딥링크
+                            <span className="text-[10px] text-slate-400">supertoss://...</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            value={systemConfig.toss_link}
+                            onChange={e => setSystemConfig({...systemConfig, toss_link: e.target.value})}
+                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-500"
+                            placeholder="supertoss://send?..."
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
+                            카카오페이 링크
+                            <span className="text-[10px] text-slate-400">https://qr.kakao.com/...</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            value={systemConfig.kakao_link}
+                            onChange={e => setSystemConfig({...systemConfig, kakao_link: e.target.value})}
+                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-500"
+                            placeholder="https://qr.kakao.com/..."
+                        />
+                    </div>
+                    <div className="flex items-end">
+                        <button 
+                            type="submit"
+                            className="w-full bg-blue-600 text-white font-bold py-2 rounded-xl hover:bg-blue-700 transition flex items-center justify-center gap-2"
+                        >
+                            <Save className="w-4 h-4" />
+                            설정 저장
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            {/* Recharge Plans Management */}
+            <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Plans List */}
+                <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-2">
+                            <Layout className="w-5 h-5 text-blue-500" />
+                            <h2 className="text-xl font-bold">요금제 플랜 관리</h2>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                            <thead>
+                                <tr className="text-slate-500 border-b border-slate-100">
+                                    <th className="pb-3">플랜명</th>
+                                    <th className="pb-3">금액</th>
+                                    <th className="pb-3">크레딧</th>
+                                    <th className="pb-3">배지</th>
+                                    <th className="pb-3">상태</th>
+                                    <th className="pb-3 text-right">관리</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {plans.map((plan) => (
+                                    <tr key={plan.id} className="border-b border-slate-50 last:border-0">
+                                        <td className="py-4 font-bold">
+                                            {plan.name}
+                                            {plan.is_popular && <span className="ml-2 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full uppercase">Popular</span>}
+                                        </td>
+                                        <td className="py-4">₩{plan.amount.toLocaleString()}</td>
+                                        <td className="py-4">{plan.credits.toLocaleString()} C</td>
+                                        <td className="py-4 text-xs text-slate-500">{plan.badge_text || "-"}</td>
+                                        <td className="py-4">
+                                            <button 
+                                                onClick={() => handleTogglePlanActive(plan)}
+                                                className={`px-2 py-1 rounded-full text-[10px] font-bold ${plan.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}
+                                            >
+                                                {plan.is_active ? "활성" : "비활성"}
+                                            </button>
+                                        </td>
+                                        <td className="py-4 text-right">
+                                            <button 
+                                                onClick={() => handleDeletePlan(plan.id)}
+                                                className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Add New Plan */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center gap-2 mb-6">
+                        <Plus className="w-5 h-5 text-blue-500" />
+                        <h2 className="text-xl font-bold">새 요금제 추가</h2>
+                    </div>
+                    <form onSubmit={handleCreatePlan} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">플랜명</label>
+                            <input 
+                                type="text" 
+                                required
+                                value={newPlan.name}
+                                onChange={e => setNewPlan({...newPlan, name: e.target.value})}
+                                className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-500"
+                                placeholder="예: 프리미엄 플랜"
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">금액 (원)</label>
+                                <input 
+                                    type="number" 
+                                    required
+                                    value={newPlan.amount}
+                                    onChange={e => setNewPlan({...newPlan, amount: Number(e.target.value)})}
+                                    className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">지급 크레딧</label>
+                                <input 
+                                    type="number" 
+                                    required
+                                    value={newPlan.credits}
+                                    onChange={e => setNewPlan({...newPlan, credits: Number(e.target.value)})}
+                                    className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-500"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">배지 텍스트</label>
+                            <input 
+                                type="text" 
+                                value={newPlan.badge_text}
+                                onChange={e => setNewPlan({...newPlan, badge_text: e.target.value})}
+                                className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-500"
+                                placeholder="예: 15% 추가 지급"
+                            />
+                        </div>
+                        <div className="flex items-center gap-4 py-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={newPlan.is_popular}
+                                    onChange={e => setNewPlan({...newPlan, is_popular: e.target.checked})}
+                                    className="w-4 h-4 rounded text-blue-500"
+                                />
+                                <span className="text-sm text-slate-700">인기 플랜 표시</span>
+                            </label>
+                        </div>
+                        <button 
+                            type="submit"
+                            className="w-full bg-blue-600 text-white font-bold py-3 rounded-2xl hover:bg-blue-700 transition"
+                        >
+                            플랜 추가하기
+                        </button>
+                    </form>
                 </div>
             </div>
 

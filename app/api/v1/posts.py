@@ -60,6 +60,7 @@ class PostPreviewPayload(BaseModel):
     img_prompts: list[str] | None = None
     custom_prompt: str | None = None
     free_trial: bool = False
+    keywords: list[str] | None = None # TO-BE: 키워드 리스트 추가
 
 
 async def process_image_generation(post_id: int, index: int, prompt: str):
@@ -153,7 +154,14 @@ async def generate_post_with_images(
         db.add(credit_entry)
 
     final_prompt = payload.custom_prompt or f"Generate SEO-friendly HTML for {payload.topic} with persona {payload.persona}."
-    html_result = await generate_html(payload.topic, payload.persona, final_prompt, payload.word_count_range, payload.image_count)
+    html_result = await generate_html(
+        payload.topic, 
+        payload.persona, 
+        final_prompt, 
+        payload.word_count_range, 
+        payload.image_count,
+        keywords=payload.keywords
+    )
     # Reviewer 최종 정제 (금칙 문구/스크립트 제거 등)
     cleaned_html, _issues = sanitize_final_html(html_result["html"])
     html_result["html"] = cleaned_html

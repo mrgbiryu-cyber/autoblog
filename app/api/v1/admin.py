@@ -7,9 +7,32 @@ from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.sql_models import User, CreditLog, SystemPolicy, Post, Blog, PaymentRequest
+from app.models.sql_models import User, CreditLog, SystemPolicy, Post, Blog, PaymentRequest, RechargePlan, SystemConfig
 
 router = APIRouter()
+
+class ConfigUpdateRequest(BaseModel):
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    account_holder: Optional[str] = None
+    toss_link: Optional[str] = None
+    kakao_link: Optional[str] = None
+
+class RechargePlanCreate(BaseModel):
+    name: str
+    amount: int
+    credits: int
+    badge_text: Optional[str] = None
+    is_popular: bool = False
+    is_active: bool = True
+
+class RechargePlanUpdate(BaseModel):
+    name: Optional[str] = None
+    amount: Optional[int] = None
+    credits: Optional[int] = None
+    badge_text: Optional[str] = None
+    is_popular: Optional[bool] = None
+    is_active: Optional[bool] = None
 
 class PaymentConfirmRequest(BaseModel):
     request_id: int
@@ -194,6 +217,114 @@ async def update_policy(
             "cost_image": policy.cost_image
         }
     }
+
+
+@router.get("/config")
+async def get_system_config(
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_user)
+):
+    """
+    시스템 설정 조회 (입금 계좌 등)
+    """
+    config = db.query(SystemConfig).first()
+    if not config:
+        config = SystemConfig()
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+    return config
+
+
+@router.put("/config")
+async def update_system_config(
+    payload: ConfigUpdateRequest,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_user)
+):
+    """
+    시스템 설정 업데이트
+    """
+    config = db.query(SystemConfig).first()
+    if not config:
+        config = SystemConfig()
+        db.add(config)
+    
+    update_data = payload.model_dump(exclude_unset=True)
+    for k, v in update_data.items():
+        setattr(config, k, v)
+    
+    db.commit()
+    db.refresh(config)
+    return config
+
+
+@router.get("/plans")
+async def get_all_plans(
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_user)
+):
+    """
+    모든 요금제 플랜 조회 (관리자용)
+    """
+    return db.query(RechargePlan).order_by(RechargePlan.amount.asc()).all()
+
+
+@router.post("/plans")
+async def create_plan(
+    payload: RechargePlanCreate,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_user)
+):
+    """
+    신규 요금제 플랜 생성
+    """
+    plan = RechargePlan(**payload.model_dump())
+    db.add(plan)
+    db.commit()
+    db.refresh(plan)
+    return plan
+
+
+@router.put("/plans/{plan_id}")
+async def update_plan(
+    plan_id: int,
+    payload: RechargePlanUpdate,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_user)
+):
+    """
+    기존 요금제 플랜 수정
+    """
+    plan = db.query(RechargePlan).filter(RechargePlan.id == plan_id).first()
+    if not plan:
+        raise HTTPException(404, "플랜을 찾을 수 없습니다")
+    
+    update_data = payload.model_dump(exclude_unset=True)
+    for k, v in update_data.items():
+        setattr(plan, k, v)
+    
+    db.commit()
+    db.refresh(plan)
+    return plan
+
+
+@router.delete("/plans/{plan_id}")
+async def delete_plan(
+    plan_id: int,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_user)
+):
+    """
+    요금제 플랜 삭제
+    """
+    plan = db.query(RechargePlan).filter(RechargePlan.id == plan_id).first()
+    if not plan:
+        raise HTTPException(404, "플랜을 찾을 수 없습니다")
+    
+    db.delete(plan)
+    db.commit()
+    return {"status": "ok"}
 
 
 @router.get("/stats")

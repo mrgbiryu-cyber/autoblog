@@ -6,7 +6,7 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.sql_models import User, PaymentRequest, CreditLog
+from app.models.sql_models import User, PaymentRequest, CreditLog, RechargePlan, SystemConfig
 
 router = APIRouter()
 
@@ -89,5 +89,33 @@ async def get_credit_status(
         "current_credit": current_user.current_credit,
         "upcoming_deduction": 0, # TODO: 예약된 포스팅에 따른 예상 차감액 계산 로직
         "currency": "KRW"
+    }
+
+@router.get("/plans")
+async def get_active_plans(
+    db: Session = Depends(get_db)
+):
+    """
+    사용자에게 보여줄 활성화된 요금제 플랜 목록 조회
+    """
+    return db.query(RechargePlan).filter(RechargePlan.is_active == True).order_by(RechargePlan.amount.asc()).all()
+
+
+@router.get("/config")
+async def get_public_config(
+    db: Session = Depends(get_db)
+):
+    """
+    공개 시스템 설정 조회 (입금 계좌 정보 등)
+    """
+    config = db.query(SystemConfig).first()
+    if not config:
+        config = SystemConfig()
+    return {
+        "bank_name": config.bank_name,
+        "account_number": config.account_number,
+        "account_holder": config.account_holder,
+        "toss_link": config.toss_link,
+        "kakao_link": config.kakao_link
     }
 

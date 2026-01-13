@@ -1,49 +1,64 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CreditCard, ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
+import { CreditCard, ArrowLeft, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-import { createRechargeRequest, fetchRechargeHistory, buildHeaders } from "@/lib/api";
-
-const RECHARGE_OPTIONS = [
-  { id: "personal", amount: 10000, credits: 1000, label: "개인 플랜", badge: "" },
-  { id: "premium", amount: 30000, credits: 3500, label: "프리미엄 플랜", badge: "15% 추가", popular: true },
-  { id: "agency", amount: 100000, credits: 13000, label: "마케팅 대행사 플랜", badge: "30% 추가" },
-];
+import { 
+  createRechargeRequest, 
+  fetchRechargeHistory, 
+  buildHeaders, 
+  fetchActivePlans,
+  fetchSystemConfigPublic 
+} from "@/lib/api";
 
 export default function CreditRecharge() {
-  const [selectedOption, setSelectedOption] = useState(RECHARGE_OPTIONS[1]);
+  const [options, setOptions] = useState<any[]>([]);
+  const [selectedOption, setSelectedOption] = useState<any>(null);
+  const [systemConfig, setSystemConfig] = useState<any>(null);
   const [depositorName, setDepositorName] = useState("");
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    loadHistory();
+    loadData();
   }, []);
 
-  const loadHistory = async () => {
+  const loadData = async () => {
     try {
-      const data = await fetchRechargeHistory();
-      setHistory(data);
+      const [historyData, plansData, configData] = await Promise.all([
+        fetchRechargeHistory(),
+        fetchActivePlans(),
+        fetchSystemConfigPublic()
+      ]);
+      setHistory(historyData);
+      setOptions(plansData);
+      setSystemConfig(configData);
+      if (plansData.length > 0) {
+        // 인기 플랜이 있으면 우선 선택, 없으면 두 번째 플랜 선택
+        const popular = plansData.find((p: any) => p.is_popular);
+        setSelectedOption(popular || plansData[Math.min(1, plansData.length - 1)]);
+      }
     } catch (e) {
       console.error(e);
     }
   };
 
   const handleTossPay = () => {
-    // 토스 송금 딥링크 (예시 구조: toss://send?amount=...&bank=...&account=...)
-    // 실제로는 토스 내계좌 송금 서비스 등에 맞춰 구성하거나, 단순 앱 오픈 유도
-    const tossUrl = `supertoss://send?amount=${selectedOption.amount}&bank=국민&account=1234567890&memo=AI블로그`;
-    window.location.href = tossUrl;
+    if (!systemConfig?.toss_link) {
+      alert("토스 송금 링크가 설정되지 않았습니다.");
+      return;
+    }
+    // 관리자가 설정한 딥링크로 이동
+    window.location.href = systemConfig.toss_link;
   };
 
   const handleKakaoPay = () => {
-    // 카카오페이 송금 딥링크
-    const kakaoUrl = `kakaotalk://kakaopay/money/to/qr?qr_code=...`; // 실제 QR 기반 또는 송금 링크
-    // 단순 송금 링크 예시
-    const kakaoTransferUrl = `https://qr.kakaopay.com/281006011000000000000000`; // 예시 QR URL
-    window.open(kakaoTransferUrl, "_blank");
+    if (!systemConfig?.kakao_link) {
+      alert("카카오페이 링크가 설정되지 않았습니다.");
+      return;
+    }
+    window.open(systemConfig.kakao_link, "_blank");
   };
 
   const handleRequestConfirm = async () => {
@@ -60,7 +75,7 @@ export default function CreditRecharge() {
       });
       setSuccess(true);
       setDepositorName("");
-      loadHistory();
+      loadData();
     } catch (e) {
       alert("요청 중 오류가 발생했습니다.");
     } finally {
@@ -83,26 +98,26 @@ export default function CreditRecharge() {
 
         <section className="bg-slate-900 rounded-3xl border border-slate-800 p-8 space-y-8">
           <div className="grid gap-4 sm:grid-cols-2">
-            {RECHARGE_OPTIONS.map((option) => (
+            {options.map((option) => (
               <button
                 key={option.id}
                 onClick={() => setSelectedOption(option)}
                 className={`relative p-6 rounded-2xl border-2 transition text-left ${
-                  selectedOption.id === option.id
+                  selectedOption?.id === option.id
                     ? "border-cyan-500 bg-cyan-500/10"
                     : "border-slate-800 bg-slate-950 hover:border-slate-600"
                 }`}
               >
-                {option.popular && (
+                {option.is_popular && (
                   <span className="absolute -top-3 right-4 bg-cyan-500 text-slate-950 text-[10px] font-bold px-2 py-1 rounded-full uppercase">
                     Popular
                   </span>
                 )}
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-slate-400">{option.label}</p>
-                  {option.badge && (
+                  <p className="text-sm text-slate-400">{option.name}</p>
+                  {option.badge_text && (
                     <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      {option.badge}
+                      {option.badge_text}
                     </span>
                   )}
                 </div>
@@ -120,19 +135,21 @@ export default function CreditRecharge() {
               <div className="flex items-center justify-between p-4 bg-slate-900 rounded-xl border border-slate-800">
                 <div>
                   <p className="text-xs text-slate-500 uppercase">입금 계좌</p>
-                  <p className="font-mono text-lg">국민은행 123456-78-901234</p>
-                  <p className="text-sm text-slate-300">예금주: (주)안티그래비티</p>
+                  <p className="font-mono text-lg">{systemConfig?.bank_name || "불러오는 중..."} {systemConfig?.account_number || ""}</p>
+                  <p className="text-sm text-slate-300">예금주: {systemConfig?.account_holder || ""}</p>
                 </div>
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={handleTossPay}
-                    className="px-4 py-2 bg-[#0050FF] text-white rounded-lg text-sm font-bold hover:opacity-90 transition"
+                    disabled={!selectedOption || !systemConfig?.toss_link}
+                    className="px-4 py-2 bg-[#0050FF] text-white rounded-lg text-sm font-bold hover:opacity-90 transition disabled:opacity-30"
                   >
                     토스 송금
                   </button>
                   <button
                     onClick={handleKakaoPay}
-                    className="px-4 py-2 bg-[#FEE500] text-black rounded-lg text-sm font-bold hover:opacity-90 transition"
+                    disabled={!selectedOption || !systemConfig?.kakao_link}
+                    className="px-4 py-2 bg-[#FEE500] text-black rounded-lg text-sm font-bold hover:opacity-90 transition disabled:opacity-30"
                   >
                     카카오페이
                   </button>

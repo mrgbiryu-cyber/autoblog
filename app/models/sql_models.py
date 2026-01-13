@@ -207,3 +207,30 @@ class PaymentRequest(Base) :
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), default=func.now())
 
     user = relationship("User")
+
+
+# 11. [신규] 충전 요금제 플랜 (관리자 관리용)
+class RechargePlan(Base):
+    __tablename__ = "recharge_plans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)  # 플랜명 (개인, 프리미엄 등)
+    amount = Column(Integer, nullable=False)  # 결제 금액 (원)
+    credits = Column(Integer, nullable=False)  # 지급 크레딧
+    badge_text = Column(String, nullable=True)  # 배지 텍스트 (15% 추가 등)
+    is_popular = Column(Boolean, default=False)  # 인기 플랜 여부
+    is_active = Column(Boolean, default=True)  # 활성화 여부
+    created_at = Column(DateTime(timezone=True), default=func.now())
+
+
+# 12. [신규] 시스템 설정 (입금 계좌 등)
+class SystemConfig(Base):
+    __tablename__ = "system_config"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bank_name = Column(String, default="국민은행")
+    account_number = Column(String, default="123456-78-901234")
+    account_holder = Column(String, default="(주)안티그래비티")
+    toss_link = Column(String, nullable=True)
+    kakao_link = Column(String, nullable=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), default=func.now())

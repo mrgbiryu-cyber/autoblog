@@ -82,6 +82,8 @@ export default function Dashboard() {
   const [selectedBlogId, setSelectedBlogId] = useState<number | null>(null);
   const [selectedCreateSlotIdx, setSelectedCreateSlotIdx] = useState<number | null>(null);
   const [regMode, setRegMode] = useState<"single" | "schedule">("single");
+  const [bulkKeywords, setBulkKeywords] = useState("");
+  const [selectedKeywordsList, setSelectedKeywordsList] = useState<string[]>([]);
   const [keywordSearchOpen, setKeywordSearchOpen] = useState(false);
   const [dimLoadingOpen, setDimLoadingOpen] = useState(false);
   const [dimLoadingStatus, setDimLoadingStatus] = useState<"loading" | "success" | "error">("loading");
@@ -139,7 +141,7 @@ export default function Dashboard() {
 
     const hasAnalysis = Boolean(analysisCategory || analysisPrompt);
 
-    return (
+  return (
       <div className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 space-y-8 text-slate-100">
         {/* 1. 공통 설정 섹션 */}
         <div className="space-y-4">
@@ -150,9 +152,9 @@ export default function Dashboard() {
             </h3>
             <div className="text-xs text-slate-400">
               ID: {blog?.id || "신규"} | 상태: {statusText}
-            </div>
           </div>
-          
+        </div>
+
           <div className="grid gap-4 md:grid-cols-3">
             <label className="space-y-2 text-sm text-slate-300">
               블로그 별칭
@@ -208,7 +210,7 @@ export default function Dashboard() {
                 placeholder="••••••••••••••••"
               />
             </label>
-          </div>
+            </div>
 
           <label className="block space-y-2 text-sm text-slate-300">
             페르소나 설정
@@ -233,8 +235,8 @@ export default function Dashboard() {
               ))}
             </div>
           </label>
-        </div>
-
+          </div>
+          
         <hr className="border-slate-800" />
 
         {/* 2. 등록 모드 토글 */}
@@ -248,7 +250,7 @@ export default function Dashboard() {
             >
               단건 등록
             </button>
-            <button
+          <button
               onClick={() => setRegMode("schedule")}
               className={`px-6 py-2 rounded-xl text-sm font-bold transition ${
                 regMode === "schedule" ? "bg-cyan-500 text-slate-950 shadow-lg" : "text-slate-400 hover:text-slate-200"
@@ -277,8 +279,8 @@ export default function Dashboard() {
                     className="p-3 rounded-2xl border border-slate-700 bg-slate-900 hover:border-cyan-400 text-slate-300 transition"
                   >
                     <Search className="w-5 h-5" />
-                  </button>
-                </div>
+          </button>
+        </div>
               </label>
               <label className="space-y-2 text-sm text-slate-300">
                 이미지 생성 개수
@@ -328,10 +330,21 @@ export default function Dashboard() {
         {regMode === "schedule" && (
           <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
             <label className="block space-y-2 text-sm text-slate-300">
-              벌크 키워드 입력 (엔터로 구분)
+              <div className="flex items-center justify-between">
+                <span>벌크 키워드 입력 (엔터로 구분)</span>
+                <button
+                    onClick={() => setKeywordSearchOpen(true)}
+                    className="flex items-center gap-1 px-3 py-1 rounded-lg border border-slate-700 bg-slate-900 hover:border-cyan-400 text-xs text-slate-300 transition"
+                >
+                    <Search className="w-3 h-3" />
+                    키워드 검색 추가
+                </button>
+              </div>
               <textarea
                 className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
-                rows={4}
+                rows={6}
+                value={bulkKeywords}
+                onChange={(e) => setBulkKeywords(e.target.value)}
                 placeholder="강남역 카페&#10;홍대 맛집&#10;제주도 여행 코스"
               />
               <p className="text-[10px] text-amber-400 flex items-center gap-1">
@@ -412,17 +425,32 @@ export default function Dashboard() {
           </div>
 
           {hasAnalysis && (
-            <div className="mt-4 p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
-              <p className="text-xs text-slate-400 uppercase tracking-widest">분석된 프롬프트 (수정 가능)</p>
-              <textarea
-                className="w-full bg-transparent text-sm text-slate-300 border-none focus:ring-0 resize-none"
-                rows={3}
-                value={analysisPrompt}
-                onChange={(e) => setAnalysisPrompt(e.target.value)}
-              />
+            <div className="mt-4 p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">분석된 프롬프트 구성</p>
+                <span className="text-[10px] text-slate-500">각 항목을 수정하여 글의 품질을 높일 수 있습니다.</span>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                    <p className="text-[10px] text-cyan-400 font-semibold uppercase">글 작성 가이드라인</p>
+                    <textarea
+                        className="w-full bg-slate-950/50 rounded-xl border border-slate-800 p-4 text-sm text-slate-200 focus:border-cyan-500 transition outline-none"
+                        rows={10}
+                        value={analysisPrompt}
+                        onChange={(e) => setAnalysisPrompt(e.target.value)}
+                        placeholder="AI에게 전달할 상세 지시사항이 여기에 표시됩니다."
+                    />
+                </div>
+                
+                {/* 
+                  추후 백엔드에서 JSON 구조로 보내주면 여기에 필드별로 매핑 가능 
+                  현재는 전체 텍스트를 크게 보여주는 것에 집중
+                */}
+              </div>
             </div>
           )}
-        </div>
+            </div>
 
         {/* 5. 생성 결과 및 이미지 상태 */}
         <div className="space-y-6 pt-6 border-t border-slate-800">
@@ -446,8 +474,8 @@ export default function Dashboard() {
                 다운로드
               </button>
             )}
-          </div>
-          
+              </div>
+
           <p className="text-xs text-slate-500">
             HTML 복사는 모달에서 복사 버튼을 이용하세요.{" "}
             {imageStatus === "processing"
@@ -476,9 +504,9 @@ export default function Dashboard() {
                   이미지 #{card.id} {card.src ? "완료" : "생성 중..."}
                 </p>
               </div>
-            ))}
-          </div>
-        </div>
+                        ))}
+                    </div>
+                 </div>
       </div>
     );
   };
@@ -602,6 +630,7 @@ export default function Dashboard() {
       custom_prompt: analysisPrompt || undefined,
       word_count_range: [wordRange.min, wordRange.max],
       free_trial: freeTrial,
+      keywords: selectedKeywordsList.length > 0 ? selectedKeywordsList : undefined,
     };
       const preview = await generatePreviewHtml(previewPayload);
       setPreviewHtml(preview.html);
@@ -874,6 +903,20 @@ export default function Dashboard() {
     setStatusMessages((prev: string[]) => [...prev, "HTML 및 이미지 다운로드가 완료되었습니다."]);
   };
 
+  const handleKeywordSelect = (selected: {keyword: string, search_volume: number}[]) => {
+    const formatted = selected.map(s => `${s.keyword}(${s.search_volume})`).join(", ");
+    const cleanList = selected.map(s => s.keyword);
+    
+    if (regMode === "single") {
+      setTopic(formatted);
+      setSelectedKeywordsList(cleanList);
+    } else {
+      const newBulk = selected.map(s => `${s.keyword}(${s.search_volume})`).join("\n");
+      setBulkKeywords(prev => prev ? `${prev}\n${newBulk}` : newBulk);
+      // 스케줄링 시에는 벌크에 추가하되, 개별 발행 시 파싱해서 써야 함
+    }
+  };
+
   const [publishLoading, setPublishLoading] = useState<number | null>(null);
 
   const handlePublishManual = async (postId: number) => {
@@ -1049,7 +1092,7 @@ export default function Dashboard() {
                     >
                       ✕
                     </button>
-            </div>
+                    </div>
                   <p className="text-xs text-slate-400 uppercase tracking-[0.2em]">{blog.platform_type}</p>
                   <h3 className="text-lg font-semibold text-white">{blog.alias || "블로그 이름 없음"}</h3>
                   <p className="text-xs text-slate-400 truncate">{blog.blog_url}</p>
@@ -1059,7 +1102,7 @@ export default function Dashboard() {
                 {selectedBlogId === blog.id && (
                   <div className="col-span-full rounded-3xl border border-slate-800 bg-slate-950/30 p-3">
                     {renderBlogSettingsPanel()}
-                  </div>
+                 </div>
                 )}
               </Fragment>
             ))}
@@ -1311,7 +1354,7 @@ export default function Dashboard() {
       <KeywordSearchModal
         isOpen={keywordSearchOpen}
         onClose={() => setKeywordSearchOpen(false)}
-        onSelect={(selected) => setTopic(selected.join(", "))}
+        onSelect={handleKeywordSelect}
       />
 
       <DimLoadingPopup
