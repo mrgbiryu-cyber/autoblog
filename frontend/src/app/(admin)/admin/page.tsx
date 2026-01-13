@@ -532,7 +532,7 @@ export default function AdminDashboard() {
             <div className="mt-8 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-2">
-                        <AlertCircle className="w-5 h-5 text-amber-500" />
+                        <CircleAlert className="w-5 h-5 text-amber-500" />
                         <h2 className="text-xl font-bold">입금 대기 목록</h2>
                     </div>
                     <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold">
