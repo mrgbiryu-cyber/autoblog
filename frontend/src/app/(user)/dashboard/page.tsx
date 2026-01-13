@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, CreditCard, Copy, Eye, Loader2, Shield, Search, AlertCircle, FileText } from "lucide-react";
+import { Bot, CreditCard, Copy, Eye, Loader2, Shield, Search, CircleAlert, FileText } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import KeywordSearchModal from "@/components/KeywordSearchModal";
@@ -335,7 +335,7 @@ export default function Dashboard() {
                 placeholder="강남역 카페&#10;홍대 맛집&#10;제주도 여행 코스"
               />
               <p className="text-[10px] text-amber-400 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
+                <CircleAlert className="w-3 h-3" />
                 입력된 키워드 순서대로 설정된 주기에 맞춰 자동 발행됩니다.
               </p>
             </label>
