@@ -678,6 +678,9 @@ export default function Dashboard() {
         // 스켈레톤 이미지 카드로 초기화
         setImageCards(preview.images.map((_, idx) => ({ id: idx + 1, src: null })));
 
+        // 모달을 미리 열지 않고, 이미지 완료 시점까지 기다림
+        // setModalOpen(true); <- 주석 처리 확인
+
         // 이미지 파일이 실제 생성되었는지 폴링
         const poll = async () => {
           const urls = preview.images || [];
@@ -711,8 +714,12 @@ export default function Dashboard() {
             setImageStatus("completed");
             setDimLoadingLogs((prev) => [...prev, "모든 이미지가 성공적으로 생성되었습니다!"]);
             setDimLoadingStatus("success");
-            // 모든 과정이 완료된 후에 모달 오픈 (선택 사항: 이미 생성 중일 때 미리 볼지 결정)
-            setModalOpen(true); 
+            // 모든 과정이 완료된 후에 모달 오픈 및 로딩 팝업 성공 처리
+            setTimeout(() => setModalOpen(true), 500);
+            
+            // 크레딧 정보 갱신 추가 (생성 후 즉시 반영)
+            fetchCreditStatus().then(setCreditInfo);
+            
             return;
           }
           setTimeout(poll, 2000); // 2초 간격으로 폴링
@@ -722,6 +729,9 @@ export default function Dashboard() {
         // 이미지가 없거나 이미 완료된 경우
         setDimLoadingStatus("success");
         setModalOpen(true);
+        
+        // 크레딧 정보 갱신 추가
+        fetchCreditStatus().then(setCreditInfo);
       }
     } catch (error) {
       console.error("Preview generation failed", error);
@@ -1117,9 +1127,12 @@ export default function Dashboard() {
               <CreditCard className="w-4 h-4" />
               크레딧 {creditInfo.current_credit} + 차감 예정 {creditInfo.upcoming_deduction}
             </div>
-            <button className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-5 py-3 rounded-2xl font-bold">
+            <Link
+              href="/credits"
+              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-5 py-3 rounded-2xl font-bold transition flex items-center gap-2"
+            >
               크레딧 충전하기
-            </button>
+            </Link>
           </div>
         </header>
 

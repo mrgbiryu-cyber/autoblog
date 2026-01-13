@@ -61,11 +61,11 @@ def validate_and_fix_image_prompts(
     banned_terms: List[str] | None = None,
 ) -> Tuple[List[str], List[str]]:
     """
-    이미지 프롬프트가 본문 주제와 정합적인지 검사하고,
-    불일치하면 topic을 강제 포함시키는 형태로 자동 보정합니다.
+    이미지 프롬프트가 주제와 정합적인지 검사합니다.
+    [변경] 주제 키워드가 없더라도 프롬프트가 충분히 구체적이면 강제로 topic을 넣지 않습니다.
+    단, 마케팅 관련 금칙어는 제거합니다.
     """
     banned_terms = banned_terms or DEFAULT_BANNED_IMAGE_TERMS
-    topic_tokens = _tokenize(topic)
     issues: List[str] = []
     fixed: List[str] = []
 
@@ -77,23 +77,22 @@ def validate_and_fix_image_prompts(
             fixed.append(prompt)
             continue
 
-        lower = prompt.lower()
-        has_topic = topic.strip() and topic.strip().lower() in lower
-        if not has_topic:
-            for tok in topic_tokens:
-                if tok.lower() in lower:
-                    has_topic = True
-                    break
+        # 마케팅/대시보드 성향 단어가 있으면 제거
+        cleaned = prompt
+        if _contains_any(cleaned, banned_terms):
+            for term in banned_terms:
+                cleaned = re.sub(re.escape(term), "", cleaned, flags=re.IGNORECASE).strip()
+            issues.append(f"image_prompts[{idx}] contains banned marketing terms -> sanitized")
+            prompt = cleaned
 
-        if not has_topic:
-            # 마케팅/대시보드 성향 단어가 있으면 제거하고 주제로 고정
-            cleaned = prompt
-            if _contains_any(cleaned, banned_terms):
-                for term in banned_terms:
-                    cleaned = re.sub(re.escape(term), "", cleaned, flags=re.IGNORECASE).strip()
-                issues.append(f"image_prompts[{idx}] contains banned marketing terms -> sanitized")
-            issues.append(f"image_prompts[{idx}] topic mismatch -> forced topic prefix")
-            prompt = f"{topic}, {cleaned}".strip().strip(",")
+        # [수정] 주제 키워드 강제 포함 로직 완화
+        # 10단어 이상으로 충분히 구체적이면 그대로 유지, 너무 짧으면 주제 보강
+        if len(prompt.split()) < 5:
+            lower = prompt.lower()
+            topic_lower = topic.lower()
+            if topic_lower not in lower:
+                prompt = f"{topic}, {prompt}".strip().strip(",")
+                issues.append(f"image_prompts[{idx}] too short -> added topic context")
 
         fixed.append(prompt)
 

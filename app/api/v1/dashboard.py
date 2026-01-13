@@ -18,30 +18,6 @@ class SchedulePayload(BaseModel):
     target_times: list[str]
 
 
-@router.get("/credits/status")
-async def get_credit_status(
-    current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
-):
-    """
-    Neo4j에 (User)-[:HAS_CREDIT]->(Credit) 구조가 있을 때 amount를 읽어옵니다.
-    없으면 프론트가 깨지지 않도록 기본값을 반환합니다.
-    """
-    query = """
-    MERGE (u:User {user_id: $user_id})
-    WITH u
-    OPTIONAL MATCH (u)-[:HAS_CREDIT]->(c:Credit)
-    RETURN c.amount AS amount, c.last_updated AS last_updated
-    LIMIT 1
-    """
-    result = session.run(query, user_id=current_user.id)
-    record = result.single()
-    if record and record.get("amount") is not None:
-        return {"current_credit": record["amount"], "upcoming_deduction": 6, "currency": "KRW"}
-
-    return {"current_credit": 42, "upcoming_deduction": 6, "currency": "KRW"}
-
-
 @router.get("/schedule")
 async def get_schedule(
     current_user: User = Depends(get_current_user),

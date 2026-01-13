@@ -69,7 +69,7 @@ export async function fetchCreditStatus(): Promise<CreditStatusPayload> {
     return await response.json();
   } catch (error) {
     console.warn("fetchCreditStatus fallback triggered", error);
-    return { current_credit: 42, upcoming_deduction: 6, currency: "KRW" };
+    return { current_credit: 0, upcoming_deduction: 0, currency: "KRW" };
   }
 }
 

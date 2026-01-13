@@ -34,8 +34,12 @@ export default function Gnb() {
 
   const loadHistory = async () => {
     try {
-      const data = await fetchCreditLogs();
-      setHistory(data);
+      const [historyData, statusData] = await Promise.all([
+        fetchCreditLogs(),
+        fetchCreditStatus()
+      ]);
+      setHistory(historyData);
+      setCreditInfo(statusData);
       setShowHistory(true);
     } catch (e) {
       console.error(e);
@@ -92,8 +96,8 @@ export default function Gnb() {
       </div>
 
       {showHistory && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 relative">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 relative animate-in fade-in zoom-in duration-200">
             <button
               onClick={() => setShowHistory(false)}
               className="absolute right-6 top-6 text-slate-400 hover:text-slate-600"
