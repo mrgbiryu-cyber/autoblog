@@ -6,10 +6,9 @@ import Link from "next/link";
 import { createRechargeRequest, fetchRechargeHistory, buildHeaders } from "@/lib/api";
 
 const RECHARGE_OPTIONS = [
-  { amount: 10000, credits: 1000, label: "1,000 Credits" },
-  { amount: 30000, credits: 3500, label: "3,500 Credits (15% Bonus)", popular: true },
-  { amount: 50000, credits: 6000, label: "6,000 Credits (20% Bonus)" },
-  { amount: 100000, credits: 13000, label: "13,000 Credits (30% Bonus)" },
+  { id: "personal", amount: 10000, credits: 1000, label: "개인 플랜", badge: "" },
+  { id: "premium", amount: 30000, credits: 3500, label: "프리미엄 플랜", badge: "15% 추가", popular: true },
+  { id: "agency", amount: 100000, credits: 13000, label: "마케팅 대행사 플랜", badge: "30% 추가" },
 ];
 
 export default function CreditRecharge() {
@@ -86,10 +85,10 @@ export default function CreditRecharge() {
           <div className="grid gap-4 sm:grid-cols-2">
             {RECHARGE_OPTIONS.map((option) => (
               <button
-                key={option.amount}
+                key={option.id}
                 onClick={() => setSelectedOption(option)}
                 className={`relative p-6 rounded-2xl border-2 transition text-left ${
-                  selectedOption.amount === option.amount
+                  selectedOption.id === option.id
                     ? "border-cyan-500 bg-cyan-500/10"
                     : "border-slate-800 bg-slate-950 hover:border-slate-600"
                 }`}
@@ -99,10 +98,18 @@ export default function CreditRecharge() {
                     Popular
                   </span>
                 )}
-                <p className="text-sm text-slate-400">{option.label}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-400">{option.label}</p>
+                  {option.badge && (
+                    <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      {option.badge}
+                    </span>
+                  )}
+                </div>
                 <p className="text-2xl font-bold mt-1">
                   ₩{option.amount.toLocaleString()}
                 </p>
+                <p className="text-xs text-slate-500 mt-1">{option.credits.toLocaleString()} C 지급</p>
               </button>
             ))}
           </div>

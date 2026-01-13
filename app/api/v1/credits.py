@@ -67,6 +67,17 @@ async def get_recharge_history(
     """
     return db.query(PaymentRequest).filter(PaymentRequest.user_id == current_user.id).order_by(PaymentRequest.created_at.desc()).all()
 
+@router.get("/logs")
+async def get_credit_logs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    내 모든 크레딧 사용/충전 로그 조회
+    """
+    logs = db.query(CreditLog).filter(CreditLog.user_id == current_user.id).order_by(CreditLog.created_at.desc()).limit(50).all()
+    return logs
+
 @router.get("/status")
 async def get_credit_status(
     current_user: User = Depends(get_current_user)

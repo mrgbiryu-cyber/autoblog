@@ -215,6 +215,13 @@ export async function fetchRechargeHistory(): Promise<any[]> {
   return await response.json();
 }
 
+export async function fetchCreditLogs(): Promise<any[]> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/credits/logs`, {
+    headers: buildHeaders(),
+  });
+  return await response.json();
+}
+
 export async function fetchPendingPayments(): Promise<any[]> {
   const response = await fetch(`${API_BASE_URL}/api/v1/admin/credits/pending-payments`, {
     headers: buildHeaders(),
