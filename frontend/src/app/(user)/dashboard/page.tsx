@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, CreditCard, Copy, Eye, Loader2, Shield, Search } from "lucide-react";
+import { Bot, CreditCard, Copy, Eye, Loader2, Shield, Search, AlertCircle, FileText } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import KeywordSearchModal from "@/components/KeywordSearchModal";

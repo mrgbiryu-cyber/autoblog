@@ -25,6 +25,7 @@ export type SchedulePayload = {
   posts_per_day: number;
   days: string[];
   target_times: string[];
+  is_active?: boolean;
 };
 
 export type KeywordTrackerRow = {
