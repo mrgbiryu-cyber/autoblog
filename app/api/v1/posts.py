@@ -189,7 +189,14 @@ async def generate_post_with_images(
     db.commit()
 
     for i in range(payload.image_count):
-        # ... 중략 ...
+        # 썸네일(마지막) 이미지인 경우 별도 처리
+        if i == payload.image_count - 1:
+            base_prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} blog thumbnail design, high quality, professional"
+            # 썸네일은 본문 내용과 제목을 기반으로 한 번 더 강조
+            prompt = f"{base_prompt}, photorealistic, detailed, blog thumbnail"
+        else:
+            prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} high quality photography, real life, detailed"
+            
         background_tasks.add_task(process_image_generation, post_id=new_post.id, index=i + 1, prompt=prompt, gen_key=gen_key)
 
     return {
