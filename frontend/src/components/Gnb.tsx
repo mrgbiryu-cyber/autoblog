@@ -159,19 +159,24 @@ export default function Gnb() {
       )}
 
       {showHistory && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 relative animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-8 relative animate-in fade-in zoom-in duration-200 my-auto">
             <button
               onClick={() => setShowHistory(false)}
-              className="absolute right-6 top-6 text-slate-400 hover:text-slate-600"
+              className="absolute right-8 top-8 text-slate-400 hover:text-slate-600 transition"
             >
               <X className="w-6 h-6" />
             </button>
-            <div className="flex items-center gap-3 mb-6">
-              <History className="w-6 h-6 text-cyan-600" />
-              <h2 className="text-xl font-bold text-slate-900">크레딧 이용 내역</h2>
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-12 h-12 bg-cyan-50 rounded-2xl flex items-center justify-center text-cyan-600">
+                <History className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">크레딧 이용 내역</h2>
+                <p className="text-xs text-slate-500">최근 발생한 크레딧 변동 사항입니다.</p>
+              </div>
             </div>
-            <div className="max-h-96 overflow-y-auto space-y-3">
+            <div className="max-h-[50vh] overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-slate-200">
               {!Array.isArray(history) || history.length === 0 ? (
                 <p className="text-center py-8 text-slate-400">내역이 없습니다.</p>
               ) : (
