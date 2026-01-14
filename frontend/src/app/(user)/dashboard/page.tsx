@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, CreditCard, Copy, Eye, Loader2, Shield, Search, CircleAlert, FileText, PlayCircle, Rocket, ArrowRight } from "lucide-react";
+import { Bot, CreditCard, Copy, Eye, Loader2, Shield, Search, CircleAlert, FileText, PlayCircle, Rocket, ArrowRight, Download, Image as ImageIcon, FileCode } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import KeywordSearchModal from "@/components/KeywordSearchModal";
@@ -683,6 +683,19 @@ export default function Dashboard() {
       const preview = await generatePreviewHtml(previewPayload);
       setPreviewHtml(preview.html);
       setGenerateResult(preview);
+      
+      if (preview.image_error) {
+        setStatusMessages((prev) => [...prev, `이미지 생성 중 알림: ${preview.image_error}`]);
+      }
+
+      // [SEO 알림] 이미지 생성 타임아웃/지연 처리
+      if (preview.status === "processing" || preview.img_gen_status === "TIMEOUT") {
+        setDimLoadingLogs((prev) => [
+          ...prev, 
+          "현재 이미지 생성 요청이 많아 작업이 지연되고 있습니다.",
+          "이미지는 잠시 후 [포스팅 현황] 메뉴에서 다운로드하실 수 있습니다."
+        ]);
+      }
       setDimLoadingLogs((prev) => [...prev, "본문 작성이 완료되었습니다. 이미지를 생성 중입니다..."]);
 
       // 4. 이미지 생성 상태 확인 및 폴링
@@ -1061,6 +1074,34 @@ export default function Dashboard() {
     }
   };
 
+  const handleDownloadHtml = (post: any) => {
+    const blob = new Blob([post.content], { type: "text/html" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${post.title.replace(/[/\\?%*:|"<>]/g, '-')}.html`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
+
+  const handleDownloadImages = (post: any) => {
+    if (!post.image_paths || post.image_paths.length === 0) {
+      alert("이미지가 없습니다.");
+      return;
+    }
+    post.image_paths.forEach((path: string, index: number) => {
+      const a = document.createElement("a");
+      a.href = `${API_BASE_URL}${path}`;
+      a.download = `image-${index + 1}.png`;
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+  };
+
   const simulateImageGeneration = (total: number) => {
     if (total <= 0) return;
     clearImageTimers();
@@ -1352,6 +1393,8 @@ export default function Dashboard() {
                   <th className="pb-3 pr-6">플랫폼</th>
                   <th className="pb-3 pr-6">순위</th>
                   <th className="pb-3 pr-6">조회수</th>
+                  <th className="pb-3 pr-6">이미지</th>
+                  <th className="pb-3 pr-6">다운로드</th>
                   <th className="pb-3 pr-6">상태/트래킹</th>
                   <th className="pb-3">원문링크</th>
                 </tr>
@@ -1391,6 +1434,35 @@ export default function Dashboard() {
                         </td>
                         <td className="py-3 pr-6 text-slate-200">
                           {post.view_count.toLocaleString()}회
+                        </td>
+                        <td className="py-3 pr-6">
+                          <div className={`text-[10px] font-bold ${
+                            post.img_gen_status === "COMPLETED" ? "text-emerald-400" :
+                            post.img_gen_status === "TIMEOUT" ? "text-amber-400" :
+                            "text-cyan-400 animate-pulse"
+                          }`}>
+                            {post.img_gen_status === "COMPLETED" ? "생성 완료" : 
+                             post.img_gen_status === "TIMEOUT" ? "타임아웃" : "생성 중..."}
+                          </div>
+                        </td>
+                        <td className="py-3 pr-6">
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleDownloadHtml(post)}
+                              className="p-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-400 transition"
+                              title="HTML 다운로드"
+                            >
+                              <FileCode className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDownloadImages(post)}
+                              disabled={!post.image_paths || post.image_paths.length === 0}
+                              className="p-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-400 transition disabled:opacity-30"
+                              title="이미지 다운로드"
+                            >
+                              <ImageIcon className="w-3 h-3" />
+                            </button>
+                          </div>
                         </td>
                         <td className="py-3 pr-6 text-xs text-slate-500">
                             <div className="flex flex-col gap-1">

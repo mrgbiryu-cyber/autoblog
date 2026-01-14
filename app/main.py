@@ -44,6 +44,19 @@ app.mount(
 # 서버 시작 시 DB 테이블 자동 생성
 init_db()
 
+@app.on_event("startup")
+async def start_periodic_cleanup():
+    from app.services.cleanup_service import cleanup_old_posts
+    async def cleanup_loop():
+        while True:
+            try:
+                cleanup_old_posts()
+            except Exception as e:
+                print(f"[Cleanup Error] {e}")
+            await asyncio.sleep(3600 * 24) # 24시간마다 실행
+    
+    asyncio.create_task(cleanup_loop())
+
 # 라우터 등록
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(blogs.router, prefix="/api/v1/blogs", tags=["blogs"])

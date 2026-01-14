@@ -76,16 +76,62 @@ async def generate_and_save_post(db: Session, user: models.User, config: models.
             status="DRAFT",
             seo_title_length=html_result.get("seo_title_length"),
             meta_description_length=html_result.get("meta_description_length"),
-            cta_text=html_result.get("cta_text")
+            cta_text=html_result.get("cta_text"),
+            expected_image_count=image_count,
+            img_gen_status="PROCESSING"
         )
         db.add(new_post)
         db.commit()
         db.refresh(new_post)
         LOGGER.info(f"[Post Created] ID {new_post.id} / Title: {new_post.title}")
+
+        # 5. 이미지 생성 프로세스 (동기 방식으로 대기)
+        from app.api.v1.posts import process_image_generation, validate_and_fix_image_prompts
+        import uuid
+        import re
+
+        img_prompts = html_result.get("image_prompts") or []
+        img_prompts, _ = validate_and_fix_image_prompts(keyword, img_prompts)
         
-        # 5. 블로그 플랫폼 API로 자동 발행
+        gen_key = uuid.uuid4().hex[:6]
+        safe_kw = re.sub(r"[^a-zA-Z0-9가-힣]", "", keyword)[:10]
+        
+        for i in range(image_count):
+            fname = f"auto-{safe_kw}-{gen_key}-{i+1}.png"
+            prompt = img_prompts[i] if i < len(img_prompts) else f"{keyword} photography"
+            # 백그라운드 태스크 대신 직접 await 하여 완료를 기다림
+            await process_image_generation(new_post.id, i+1, prompt, fname)
+        
+        # 최신 상태 리프레시 (이미지 생성 완료 대기)
+        max_retries = 30 # 최대 5분 (10초 * 30)
+        images_ready = False
+        for _ in range(max_retries):
+            db.refresh(new_post)
+            if new_post.img_gen_status == "COMPLETED":
+                images_ready = True
+                break
+            if new_post.img_gen_status in ["FAILED", "TIMEOUT"]:
+                LOGGER.warning(f"이미지 생성 중 일부 오류 발생({new_post.img_gen_status}), 하지만 포스팅 시도")
+                images_ready = True # 일부 실패해도 일단 진행
+                break
+            await asyncio.sleep(10)
+        
+        if not images_ready:
+            LOGGER.error(f"이미지 생성 대기 시간 초과(5분). 자동 포스팅을 중단합니다. 포스트 ID: {new_post.id}")
+            new_post.status = "PUBLISH_FAILED"
+            new_post.img_gen_status = "TIMEOUT"
+            db.commit()
+            return
+        
+        # 6. 블로그 플랫폼 API로 자동 발행
         try:
-            publish_result = await publish_post(target_blog, html_result)
+            # 이미지 경로가 포함된 상태로 다시 구성
+            publish_payload = {
+                "title": new_post.title,
+                "html": new_post.content,
+                "images": new_post.image_paths or []
+            }
+            publish_result = await publish_post(target_blog, publish_payload)
             new_post.status = "PUBLISHED"
             new_post.published_url = publish_result.get("url")
             db.commit()
@@ -95,7 +141,7 @@ async def generate_and_save_post(db: Session, user: models.User, config: models.
             new_post.status = "PUBLISH_FAILED"
             db.commit()
         
-        # 6. 키워드 사용 처리
+        # 7. 키워드 사용 처리
         mark_keyword_used(db, user.id, keyword)
         
     except Exception as e:

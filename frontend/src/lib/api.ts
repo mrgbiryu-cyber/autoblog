@@ -55,6 +55,7 @@ export type PreviewResponse = {
   image_total?: number;
   post_id?: number;
   image_error?: string | null;
+  img_gen_status?: string; // [추가]
 };
 
 export async function fetchCreditStatus(): Promise<CreditStatusPayload> {

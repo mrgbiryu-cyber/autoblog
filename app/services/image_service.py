@@ -11,7 +11,10 @@ from fastapi import BackgroundTasks
 LOGGER = logging.getLogger("image_service")
 
 COMFYUI_API_URL = os.getenv("COMFYUI_API_URL", "http://127.0.0.1:8188")
-COMFYUI_TIMEOUT_SECONDS = float(os.getenv("COMFYUI_TIMEOUT_SECONDS", "120"))
+COMFYUI_TIMEOUT_SECONDS = float(os.getenv("COMFYUI_TIMEOUT_SECONDS", "300")) # 대기열 고려 타임아웃 연장
+
+# [전역 대기열 로직] 하나의 컴퓨터에서 순차적으로 생성하도록 세마포어 설정 (1개씩)
+_GEN_SEMAPHORE = asyncio.Semaphore(1)
 
 
 def resolve_workflow_path() -> str:
@@ -219,6 +222,9 @@ async def generate_image_background(
 async def generate_image_sync(workflow_path: str, prompt: str) -> bytes:
     """
     즉시 결과를 받고 싶은 경우 호출할 수 있는 동기 함수.
+    [대기열 적용] 세마포어를 통해 이전 이미지가 완료될 때까지 대기합니다.
     """
-    return await _run_comfy_workflow(workflow_path, prompt)
+    async with _GEN_SEMAPHORE:
+        LOGGER.info("이미지 생성 시작 (대기열 통과)")
+        return await _run_comfy_workflow(workflow_path, prompt)
 

@@ -45,12 +45,49 @@ def _workflow_path_for_runtime() -> str:
 
 router = APIRouter()
 
-# 블로그별 포스팅 현황을 묶어서 보여주기 위한 응답 구조
+from sqlalchemy import and_, or_
+from datetime import timedelta
+
+# ... existing imports ...
+
+@router.delete("/cleanup")
+def cleanup_old_posts(db: Session = Depends(get_db)):
+    """
+    7일이 지난 임시저장(DRAFT) 포스트와 관련 이미지를 삭제합니다.
+    """
+    seven_days_ago = datetime.now() - timedelta(days=7)
+    
+    # 7일 이상 된 DRAFT 포스트 조회
+    old_posts = db.query(Post).filter(
+        and_(
+            Post.status == "DRAFT",
+            Post.created_at < seven_days_ago
+        )
+    ).all()
+    
+    count = 0
+    for post in old_posts:
+        # 이미지 파일 삭제
+        if post.image_paths:
+            for path in post.image_paths:
+                try:
+                    full_path = Path(__file__).resolve().parents[3] / "static" / path.lstrip("/")
+                    if full_path.exists():
+                        os.remove(full_path)
+                except Exception as e:
+                    LOGGER.error(f"Failed to delete image {path}: {e}")
+        
+        db.delete(post)
+        count += 1
+    
+    db.commit()
+    return {"status": "ok", "deleted_count": count}
+
+
 class BlogStatsResponse(BaseModel):
     blog_alias: str
     platform: str
     posts: List[PostStatusResponse]
-
 
 class PostPreviewPayload(BaseModel):
     topic: str
@@ -64,6 +101,8 @@ class PostPreviewPayload(BaseModel):
 
 
 async def process_image_generation(post_id: int, index: int, prompt: str, filename: str):
+    from app.core.database import SessionLocal
+    db = SessionLocal()
     try:
         wf = _workflow_path_for_runtime()
         # SDXL 프롬프트에 텍스트 배제 지시어 추가
@@ -74,25 +113,81 @@ async def process_image_generation(post_id: int, index: int, prompt: str, filena
         # [SEO 로그] 저장된 파일명과 주제 연동 확인
         LOGGER.info(f"SEO Image Saved: {filename} for post {post_id}")
 
-        # DB에도 이미지 URL 저장 (다운로드/상태 확인용)
-        from app.core.database import SessionLocal
-
-        db = SessionLocal()
-        try:
-            post = db.query(Post).filter(Post.id == post_id).first()
-            if post:
-                paths = post.image_paths or []
-                if url not in paths:
-                    paths.append(url)
-                    post.image_paths = paths
-                    db.commit()
-        finally:
-            db.close()
-
-        LOGGER.info("Image saved (static): %s", url)
+        post = db.query(Post).filter(Post.id == post_id).first()
+        if post:
+            paths = post.image_paths or []
+            if url not in paths:
+                paths.append(url)
+                post.image_paths = paths
+                # 모든 이미지가 생성되었는지 확인
+                if len(paths) >= post.expected_image_count:
+                    post.img_gen_status = "COMPLETED"
+                else:
+                    post.img_gen_status = "PROCESSING"
+                db.commit()
     except Exception as exc:
-        LOGGER.exception("Image generation failed (post=%s idx=%s type=%s): %s", post_id, index, type(exc).__name__, exc)
+        LOGGER.exception("Image generation failed (post=%s idx=%s): %s", post_id, index, exc)
+        post = db.query(Post).filter(Post.id == post_id).first()
+        if post:
+            if "timeout" in str(exc).lower():
+                post.img_gen_status = "TIMEOUT"
+            else:
+                post.img_gen_status = "FAILED"
+            db.commit()
+    finally:
+        db.close()
 
+
+
+from fastapi.responses import FileResponse, StreamingResponse
+import io
+
+@router.get("/{post_id}/download/html")
+async def download_post_html(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    post = db.query(Post).join(Blog).filter(Post.id == post_id, Blog.owner_id == current_user.id).first()
+    if not post or not post.content:
+        raise HTTPException(status_code=404, detail="포스트를 찾을 수 없습니다.")
+    
+    filename = f"post_{post_id}.html"
+    return StreamingResponse(
+        io.BytesIO(post.content.encode("utf-8")),
+        media_type="text/html",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@router.get("/{post_id}/download/images")
+async def download_post_images(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    import zipfile
+    post = db.query(Post).join(Blog).filter(Post.id == post_id, Blog.owner_id == current_user.id).first()
+    if not post or not post.image_paths:
+        raise HTTPException(status_code=404, detail="이미지가 없습니다.")
+    
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+        for path in post.image_paths:
+            try:
+                # static/generated_images/...
+                full_path = Path(__file__).resolve().parents[3] / "static" / path.lstrip("/")
+                if full_path.exists():
+                    zip_file.write(full_path, arcname=os.path.basename(path))
+            except Exception as e:
+                LOGGER.error(f"Failed to add image {path} to zip: {e}")
+    
+    zip_buffer.seek(0)
+    filename = f"post_{post_id}_images.zip"
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/x-zip-compressed",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 
 @router.get("/status", response_model=List[BlogStatsResponse])
@@ -139,6 +234,8 @@ async def generate_post_with_images(
         title=f"{payload.topic} #{payload.persona}",
         content="자동 생성된 초안입니다. 곧 Gemini가 업데이트합니다.",
         status="DRAFT",
+        expected_image_count=payload.image_count,
+        img_gen_status="PROCESSING"
     )
     db.add(new_post)
     db.commit()
@@ -203,6 +300,7 @@ async def generate_post_with_images(
         image_urls.append(f"/generated_images/{fname}")
 
     new_post.image_paths = [] 
+    new_post.expected_image_count = payload.image_count # 예상 이미지 수 저장
     db.commit()
 
     for i in range(payload.image_count):

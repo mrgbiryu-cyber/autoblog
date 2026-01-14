@@ -57,10 +57,14 @@ class BlogResponse(BaseModel):
 class PostStatusResponse(BaseModel):
     id: int
     title: str
+    content: str | None # [추가] 다운로드용
     status: str
     published_url: str | None
     view_count: int
     keyword_ranks: dict | None
+    image_paths: List[str] | None
+    expected_image_count: int
+    img_gen_status: str # [추가]
     tracking_status: str | None
     last_tracked_at: datetime | None
     created_at: datetime

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { BarChart3, Clock, Eye, ExternalLink, Loader2 } from "lucide-react";
+import { BarChart3, Clock, Eye, ExternalLink, Loader2, Download, Image as ImageIcon, FileCode } from "lucide-react";
 import { publishPostManual, buildHeaders } from "@/lib/api";
 
 // 환경변수를 못 읽더라도 무조건 형님의 서버 IP를 바라보게 합니다.
@@ -45,11 +45,38 @@ export default function StatusPage() {
     }
   };
 
-  const timeAgo = (dateStr: string) => {
-    const diff = new Date().getTime() - new Date(dateStr).getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    if (hours < 24) return `${hours}시간 전`;
-    return `${Math.floor(hours / 24)}일 전`;
+  const handleDownloadHtml = (post: any) => {
+    window.open(`${API_BASE_URL}/api/v1/posts/${post.id}/download/html`, "_blank");
+  };
+
+  const handleDownloadImages = (post: any) => {
+    window.open(`${API_BASE_URL}/api/v1/posts/${post.id}/download/images`, "_blank");
+  };
+
+  const getImgGenStatusText = (status: string) => {
+    switch (status) {
+      case "PENDING": return "이미지 생성 대기 중...";
+      case "PROCESSING": return "이미지 생성 중...";
+      case "COMPLETED": return "생성 완료";
+      case "TIMEOUT": return "타임아웃 (다운로드 권장)";
+      case "FAILED": return "생성 실패";
+      default: return "대기 중";
+    }
+  };
+
+  const timeAgo = (date: string) => {
+    const now = new Date();
+    const past = new Date(date);
+    const diff = now.getTime() - past.getTime();
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) return `${days}일 전`;
+    if (hours > 0) return `${hours}시간 전`;
+    if (minutes > 0) return `${minutes}분 전`;
+    return "방금 전";
   };
 
   return (
@@ -80,7 +107,8 @@ export default function StatusPage() {
                     <th className="px-6 py-3 font-medium">게시글 제목</th>
                     <th className="px-6 py-3 font-medium">발행일</th>
                     <th className="px-6 py-3 font-medium">조회수</th>
-                    <th className="px-6 py-3 font-medium">키워드 순위 (Tracking)</th>
+                    <th className="px-6 py-3 font-medium">이미지 상태</th>
+                    <th className="px-6 py-3 font-medium">다운로드</th>
                     <th className="px-6 py-3 font-medium">상태</th>
                   </tr>
                 </thead>
@@ -108,24 +136,44 @@ export default function StatusPage() {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        {Object.keys(post.keyword_ranks || {}).length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
-                            {Object.entries(post.keyword_ranks || {}).map(([k, v]) => (
-                              <span key={k} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs border border-blue-100">
-                                {k}: <span className="font-bold">{String(v)}위</span>
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-gray-300 text-xs">집계 중...</span>
+                        <div className={`text-xs font-semibold ${
+                          post.img_gen_status === "COMPLETED" ? "text-green-600" :
+                          post.img_gen_status === "TIMEOUT" ? "text-amber-600" :
+                          "text-blue-600 animate-pulse"
+                        }`}>
+                          {getImgGenStatusText(post.img_gen_status)}
+                        </div>
+                        {post.img_gen_status === "TIMEOUT" && (
+                          <p className="text-[10px] text-gray-400 mt-1">서버 부하로 지연됨</p>
                         )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleDownloadHtml(post)}
+                            className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg transition text-slate-600"
+                            title="HTML 다운로드"
+                          >
+                            <FileCode className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDownloadImages(post)}
+                            disabled={!post.image_paths || post.image_paths.length === 0}
+                            className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg transition text-slate-600 disabled:opacity-30"
+                            title="이미지 다운로드"
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-1 rounded text-xs font-bold ${
-                            post.status === "PUBLISHED" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                            post.status === "PUBLISHED" ? "bg-green-100 text-green-700" : 
+                            post.status === "PUBLISH_FAILED" ? "bg-red-100 text-red-700" :
+                            "bg-gray-100 text-gray-600"
                           }`}>
-                            {post.status}
+                            {post.status === "PUBLISH_FAILED" ? "발행 실패" : post.status}
                           </span>
                           {post.status !== "PUBLISHED" && (
                             <button

@@ -138,6 +138,8 @@ class Post(Base):
     view_count = Column(Integer, nullable=False, default=0)
     keyword_ranks = Column(JSON, nullable=True)  # {"keyword": {"rank": 3, "change": 1, ...}, ...} 또는 자유 형식
     image_paths = Column(JSON, nullable=True)  # ["/generated_images/..png", ...]
+    expected_image_count = Column(Integer, nullable=False, default=0) # 생성되어야 할 총 이미지 수
+    img_gen_status = Column(String, nullable=False, default="PENDING") # PENDING, PROCESSING, COMPLETED, FAILED, TIMEOUT
 
     # TO-BE: SEO 최적화 필드
     seo_title_length = Column(Integer, nullable=True)
