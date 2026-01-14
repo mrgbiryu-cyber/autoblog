@@ -53,8 +53,17 @@ export default function CreditRecharge() {
       alert("토스 송금 링크가 설정되지 않았습니다.");
       return;
     }
-    // 관리자가 설정한 딥링크로 이동
-    window.location.href = systemConfig.toss_link;
+    if (!selectedOption) {
+      alert("요금제를 먼저 선택해주세요.");
+      return;
+    }
+
+    // 금액 파라미터 자동 삽입 (기존 링크에 ?가 있으면 &로, 없으면 ?로 연결)
+    let url = systemConfig.toss_link;
+    const separator = url.includes("?") ? "&" : "?";
+    const finalUrl = `${url}${separator}amount=${selectedOption.amount}`;
+    
+    window.location.href = finalUrl;
   };
 
   const handleKakaoPay = () => {
@@ -62,7 +71,17 @@ export default function CreditRecharge() {
       alert("카카오페이 링크가 설정되지 않았습니다.");
       return;
     }
-    window.open(systemConfig.kakao_link, "_blank");
+    if (!selectedOption) {
+      alert("요금제를 먼저 선택해주세요.");
+      return;
+    }
+
+    // 카카오페이 링크에도 금액 파라미터 추가 (플랫폼별 규격에 따라 조정 가능)
+    let url = systemConfig.kakao_link;
+    const separator = url.includes("?") ? "&" : "?";
+    const finalUrl = `${url}${separator}amount=${selectedOption.amount}`;
+
+    window.open(finalUrl, "_blank");
   };
 
   const handleRequestConfirm = async () => {
