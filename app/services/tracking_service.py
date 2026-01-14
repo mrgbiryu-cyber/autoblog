@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class TrackingService:
     """
-    발행된 포스팅의 검색 순위 및 상태를 추적하는 서비스 (V6)
+    발행된 포스팅의 검색 순위 및 상태를 추적하는 서비스 (PeakContent)
     """
 
     async def get_naver_search_rank(self, keyword: str, target_url: str) -> Dict[str, Any]:

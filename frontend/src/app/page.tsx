@@ -89,7 +89,7 @@ export default function LandingPage() {
               Core Engine
             </div>
             <h2 className="text-4xl md:text-5xl font-black tracking-tight leading-tight">
-              V6만의 독보적인 <br className="md:hidden" />
+              PeakContent만의 독보적인 <br className="md:hidden" />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
                 4개 AI 협업 시스템
               </span>
@@ -177,7 +177,7 @@ export default function LandingPage() {
 
       {/* 푸터 */}
       <footer className="py-8 text-center text-gray-400 text-sm border-t border-gray-100">
-        © 2026 AI Blog Auto-Pilot. All rights reserved.
+        © 2026 PeakContent (피크컨텐츠). All rights reserved.
       </footer>
     </div>
   );

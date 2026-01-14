@@ -32,7 +32,7 @@ export default function ApiGuidePage() {
               <p>1. <a href="https://www.tistory.com/guide/api/manage/register" target="_blank" className="text-cyan-400 underline">티스토리 API 등록 페이지</a>에 접속합니다.</p>
               <p>2. 앱 이름과 설명, 서비스 URL(http://localhost:3000 등)을 입력합니다.</p>
               <p>3. 발급된 **App ID**와 **Secret Key**를 복사합니다.</p>
-              <p>4. V6 대시보드의 블로그 수정 메뉴에서 해당 키를 입력하여 연동을 완료합니다.</p>
+              <p>4. 피크컨텐츠 대시보드의 블로그 수정 메뉴에서 해당 키를 입력하여 연동을 완료합니다.</p>
             </div>
           </section>
 

@@ -14,7 +14,7 @@ export default function UsageGuidePage() {
           </Link>
           <h1 className="text-4xl font-extrabold tracking-tight flex items-center gap-3">
             <PlayCircle className="w-10 h-10 text-cyan-400" />
-            V6 서비스 이용 방법 가이드
+            PeakContent 이용 방법 가이드
           </h1>
           <p className="text-lg text-slate-400">
             자동 블로그 운영의 첫 걸음부터 수익화까지, 핵심 기능을 마스터하는 튜토리얼입니다.

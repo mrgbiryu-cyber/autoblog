@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Anti-Gravity Blog Engine",
-  description: "AI Blog Auto-Pilot",
+  title: "PeakContent | 피크컨텐츠",
+  description: "PeakContent - The Blog You Meet First",
 };
 
 export default function RootLayout({

@@ -59,10 +59,10 @@ export default function Gnb() {
     <>
       <nav className="fixed inset-x-0 top-0 z-50 border-b border-slate-900/10 bg-white/90 backdrop-blur shadow-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link href="/" className="text-xl font-bold tracking-tighter text-slate-900 flex items-center gap-2">
-            <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white text-xs">V6</div>
-            Auto Pilot
-          </Link>
+        <Link href="/" className="text-xl font-bold tracking-tighter text-slate-900 flex items-center gap-2">
+          <div className="w-8 h-8 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center text-white text-[10px] font-black">PC</div>
+          PeakContent
+        </Link>
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
