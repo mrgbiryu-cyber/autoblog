@@ -63,13 +63,16 @@ class PostPreviewPayload(BaseModel):
     keywords: list[str] | None = None # TO-BE: 키워드 리스트 추가
 
 
-async def process_image_generation(post_id: int, index: int, prompt: str, gen_key: str):
+async def process_image_generation(post_id: int, index: int, prompt: str, filename: str):
     try:
         wf = _workflow_path_for_runtime()
-        image_bytes = await generate_image_sync(wf, prompt)
-        # 고유 키(gen_key)를 포함하여 절대 중복되지 않는 파일명 생성
-        filename = f"post_{post_id}_{gen_key}_img_{index}.png"
+        # SDXL 프롬프트에 텍스트 배제 지시어 추가
+        final_prompt = f"{prompt}, no text, no letters, high quality photography"
+        image_bytes = await generate_image_sync(wf, final_prompt)
         url = save_image_bytes(filename, image_bytes)
+
+        # [SEO 로그] 저장된 파일명과 주제 연동 확인
+        LOGGER.info(f"SEO Image Saved: {filename} for post {post_id}")
 
         # DB에도 이미지 URL 저장 (다운로드/상태 확인용)
         from app.core.database import SessionLocal
@@ -181,23 +184,42 @@ async def generate_post_with_images(
         img_prompts = []
     img_prompts, _img_issues = validate_and_fix_image_prompts(payload.topic, img_prompts)
 
-    # 프론트가 스켈레톤을 그릴 수 있도록 고유 세션 키 생성 및 URL 반환
+    # [SEO 고도화] 파일명에 키워드 주입 및 랜덤 세션 키 결합
     import uuid
-    gen_key = uuid.uuid4().hex[:8]
-    image_urls = [f"/generated_images/post_{new_post.id}_{gen_key}_img_{i + 1}.png" for i in range(payload.image_count)]
-    new_post.image_paths = []  # 실제 저장 완료된 것만 DB에 축적
+    import re
+    
+    main_kw = payload.keywords[0] if payload.keywords else payload.topic
+    sub_kw = payload.keywords[1] if payload.keywords and len(payload.keywords) > 1 else "seo"
+    # 파일명 사용 가능하게 정제
+    safe_main = re.sub(r"[^a-zA-Z0-9가-힣]", "", main_kw)[:10]
+    safe_sub = re.sub(r"[^a-zA-Z0-9가-힣]", "", sub_kw)[:10]
+    gen_key = uuid.uuid4().hex[:6]
+    
+    image_urls = []
+    filenames = []
+    for i in range(payload.image_count):
+        fname = f"{safe_main}-{safe_sub}-{gen_key}-{i+1}.png"
+        filenames.append(fname)
+        image_urls.append(f"/generated_images/{fname}")
+
+    new_post.image_paths = [] 
     db.commit()
 
     for i in range(payload.image_count):
         # 썸네일(마지막) 이미지인 경우 별도 처리
         if i == payload.image_count - 1:
-            base_prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} blog thumbnail design, high quality, professional"
-            # 썸네일은 본문 내용과 제목을 기반으로 한 번 더 강조
-            prompt = f"{base_prompt}, photorealistic, detailed, blog thumbnail"
+            base_prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} blog thumbnail design"
+            prompt = f"{base_prompt}, blog thumbnail, high resolution"
         else:
-            prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} high quality photography, real life, detailed"
+            prompt = img_prompts[i] if i < len(img_prompts) else f"{payload.topic} photography"
             
-        background_tasks.add_task(process_image_generation, post_id=new_post.id, index=i + 1, prompt=prompt, gen_key=gen_key)
+        background_tasks.add_task(
+            process_image_generation, 
+            post_id=new_post.id, 
+            index=i + 1, 
+            prompt=prompt, 
+            filename=filenames[i]
+        )
 
     return {
         "status": "processing",

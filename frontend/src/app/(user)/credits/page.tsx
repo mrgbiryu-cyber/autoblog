@@ -31,16 +31,20 @@ export default function CreditRecharge() {
         fetchActivePlans(),
         fetchSystemConfigPublic()
       ]);
-      setHistory(historyData);
-      setOptions(plansData);
+      setHistory(Array.isArray(historyData) ? historyData : []);
+      setOptions(Array.isArray(plansData) ? plansData : []);
       setSystemConfig(configData);
-      if (plansData.length > 0) {
+      
+      const validPlans = Array.isArray(plansData) ? plansData : [];
+      if (validPlans.length > 0) {
         // 인기 플랜이 있으면 우선 선택, 없으면 두 번째 플랜 선택
-        const popular = plansData.find((p: any) => p.is_popular);
-        setSelectedOption(popular || plansData[Math.min(1, plansData.length - 1)]);
+        const popular = validPlans.find((p: any) => p.is_popular);
+        setSelectedOption(popular || validPlans[Math.min(1, validPlans.length - 1)]);
       }
     } catch (e) {
       console.error(e);
+      setHistory([]);
+      setOptions([]);
     }
   };
 
@@ -97,8 +101,15 @@ export default function CreditRecharge() {
         </header>
 
         <section className="bg-slate-900 rounded-3xl border border-slate-800 p-8 space-y-8">
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold">요금제 선택</h2>
+            <p className="text-sm text-slate-400">
+              * AI 콘텐츠 생성 시 이미지당 2C, 텍스트 1,000자당 1C가 차감됩니다. (미리보기 포함)
+            </p>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
-            {options.map((option) => (
+            {Array.isArray(options) && options.map((option) => (
               <button
                 key={option.id}
                 onClick={() => setSelectedOption(option)}
@@ -127,6 +138,15 @@ export default function CreditRecharge() {
                 <p className="text-xs text-slate-500 mt-1">{option.credits.toLocaleString()} C 지급</p>
               </button>
             ))}
+            
+            <button
+              onClick={() => window.open("mailto:support@antigravity.kr")}
+              className="p-6 rounded-2xl border-2 border-dashed border-slate-800 bg-slate-950 hover:border-slate-600 transition text-left"
+            >
+              <p className="text-sm text-slate-400">기업 / B2B 대량 구매</p>
+              <p className="text-xl font-bold mt-1 text-cyan-400">별도 문의</p>
+              <p className="text-xs text-slate-500 mt-1">대량 사용자 맞춤 요금제 제공</p>
+            </button>
           </div>
 
           <div className="space-y-6">
@@ -205,7 +225,7 @@ export default function CreditRecharge() {
                 </tr>
               </thead>
               <tbody>
-                {history.length === 0 ? (
+                {!Array.isArray(history) || history.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="py-8 text-center text-slate-600">내역이 없습니다.</td>
                   </tr>

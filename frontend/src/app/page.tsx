@@ -77,6 +77,44 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* 4 AI Collaboration Section */}
+      <section className="py-24 bg-slate-900 text-white overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center space-y-4 mb-16">
+            <h2 className="text-4xl font-extrabold tracking-tight">V6만의 독보적인 4개 AI 협업 시스템</h2>
+            <p className="text-slate-400 text-lg">단순한 글쓰기를 넘어, 검색 결과 상위 노출을 위해 4개의 특화 AI가 동시 협업합니다.</p>
+          </div>
+
+          <div className="relative">
+            {/* 시각적 연결선 (데스크탑) */}
+            <div className="hidden lg:block absolute top-1/2 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-blue-500 to-transparent -translate-y-1/2 opacity-30"></div>
+            
+            <div className="grid md:grid-cols-4 gap-8 relative z-10">
+              <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 text-center space-y-4">
+                <div className="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">01</div>
+                <h3 className="text-xl font-bold">SEO 데이터 엔진</h3>
+                <p className="text-sm text-slate-400">실시간 검색어와 경쟁 문서를 분석하여 상위 노출 키워드를 선정합니다.</p>
+              </div>
+              <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 text-center space-y-4">
+                <div className="w-16 h-16 bg-purple-500/20 text-purple-400 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">02</div>
+                <h3 className="text-xl font-bold">원문 교차 검증 AI</h3>
+                <p className="text-sm text-slate-400">다양한 출처를 대조하여 사실 기반의 정확한 정보만을 본문에 담습니다.</p>
+              </div>
+              <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 text-center space-y-4">
+                <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">03</div>
+                <h3 className="text-xl font-bold">페르소나 작가</h3>
+                <p className="text-sm text-slate-400">설정된 말투와 지식 수준에 맞춰 독자가 신뢰할 수 있는 문체를 구현합니다.</p>
+              </div>
+              <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 text-center space-y-4">
+                <div className="w-16 h-16 bg-rose-500/20 text-rose-400 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">04</div>
+                <h3 className="text-xl font-bold">상호 검수 에디터</h3>
+                <p className="text-sm text-slate-400">가독성, 오탈자, 그리고 검색 누락 요소를 최종 확인 후 발행합니다.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* 4. 하단 CTA */}
       <section className="py-24 px-6 text-center">
         <div className="max-w-3xl mx-auto bg-gray-900 rounded-3xl p-12 text-white shadow-2xl">

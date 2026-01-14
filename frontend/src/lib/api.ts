@@ -223,24 +223,42 @@ export async function createRechargeRequest(payload: RechargeRequestPayload): Pr
 }
 
 export async function fetchRechargeHistory(): Promise<any[]> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/credits/recharge/history`, {
-    headers: buildHeaders(),
-  });
-  return await response.json();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/credits/recharge/history`, {
+      headers: buildHeaders(),
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    return [];
+  }
 }
 
 export async function fetchCreditLogs(): Promise<any[]> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/credits/logs`, {
-    headers: buildHeaders(),
-  });
-  return await response.json();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/credits/logs`, {
+      headers: buildHeaders(),
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    return [];
+  }
 }
 
 export async function fetchPendingPayments(): Promise<any[]> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/admin/credits/pending-payments`, {
-    headers: buildHeaders(),
-  });
-  return await response.json();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/admin/credits/pending-payments`, {
+      headers: buildHeaders(),
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    return [];
+  }
 }
 
 export async function confirmPayment(requestId: number, approve: boolean): Promise<any> {
@@ -268,10 +286,16 @@ export async function trackPost(postId: number): Promise<any> {
 
 // Plan Management
 export async function fetchAllPlansAdmin(): Promise<any[]> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/admin/plans`, {
-    headers: buildHeaders(),
-  });
-  return await response.json();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/admin/plans`, {
+      headers: buildHeaders(),
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    return [];
+  }
 }
 
 export async function createPlanAdmin(payload: any): Promise<any> {
@@ -301,24 +325,40 @@ export async function deletePlanAdmin(planId: number): Promise<any> {
 }
 
 export async function fetchActivePlans(): Promise<any[]> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/credits/plans`, {
-    headers: buildHeaders(),
-  });
-  return await response.json();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/credits/plans`, {
+      headers: buildHeaders(),
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    return [];
+  }
 }
 
 export async function fetchSystemConfigPublic(): Promise<any> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/credits/config`, {
-    headers: buildHeaders(),
-  });
-  return await response.json();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/credits/config`, {
+      headers: buildHeaders(),
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (e) {
+    return null;
+  }
 }
 
 export async function fetchSystemConfigAdmin(): Promise<any> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/admin/config`, {
-    headers: buildHeaders(),
-  });
-  return await response.json();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/admin/config`, {
+      headers: buildHeaders(),
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (e) {
+    return null;
+  }
 }
 
 export async function updateSystemConfigAdmin(payload: any): Promise<any> {

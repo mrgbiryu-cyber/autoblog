@@ -87,6 +87,7 @@ export default function AdminDashboard() {
 
     const fetchData = async () => {
         setLoading(true);
+        setError("");
         try {
             const [statsRes, policyRes, pendingRes, plansRes, configRes] = await Promise.all([
                 fetch(`${API_BASE_URL}/api/v1/admin/stats`, { headers: buildHeaders() }),
@@ -96,13 +97,21 @@ export default function AdminDashboard() {
                 fetchSystemConfigAdmin()
             ]);
 
+            if (statsRes.status === 401 || policyRes.status === 401) {
+                window.location.href = "/login";
+                return;
+            }
+
             if (statsRes.ok) setStats(await statsRes.json());
             if (policyRes.ok) setPolicy(await policyRes.json());
-            setPendingPayments(pendingRes || []);
-            setPlans(plansRes || []);
+            setPendingPayments(Array.isArray(pendingRes) ? pendingRes : []);
+            setPlans(Array.isArray(plansRes) ? plansRes : []);
             if (configRes) setSystemConfig(configRes);
         } catch (err) {
+            console.error(err);
             setError("데이터를 불러오는데 실패했습니다.");
+            setPendingPayments([]);
+            setPlans([]);
         } finally {
             setLoading(false);
         }
@@ -425,7 +434,7 @@ export default function AdminDashboard() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {plans.map((plan) => (
+                                {Array.isArray(plans) && plans.map((plan) => (
                                     <tr key={plan.id} className="border-b border-slate-50 last:border-0">
                                         <td className="py-4 font-bold">
                                             {plan.name}
@@ -540,7 +549,7 @@ export default function AdminDashboard() {
                     </span>
                 </div>
                 
-                {pendingPayments.length === 0 ? (
+                {(!Array.isArray(pendingPayments) || pendingPayments.length === 0) ? (
                     <div className="text-center py-12 text-slate-400">
                         <p>현재 대기 중인 입금 확인 요청이 없습니다.</p>
                     </div>

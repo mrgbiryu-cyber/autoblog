@@ -48,6 +48,7 @@ export default function Dashboard() {
   const [personaText, setPersonaText] = useState("전문 SEO 마케터처럼");
   const [previewHtml, setPreviewHtml] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [sourceModalOpen, setSourceModalOpen] = useState(false); // HTML 소스 보기용
   const [previewLoading, setPreviewLoading] = useState(false);
   const [keywordTracker, setKeywordTracker] = useState<KeywordTrackerRow[]>([]);
   const [schedule, setSchedule] = useState<SchedulePayload>({
@@ -473,15 +474,26 @@ export default function Dashboard() {
         <div className="space-y-6 pt-6 border-t border-slate-800">
           <div className="flex flex-wrap gap-3 text-sm">
             {previewHtml && (
-              <button
-                onClick={() => setModalOpen(true)}
-                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 hover:border-slate-400"
-              >
-                <span className="flex items-center gap-2">
-                  <Eye className="w-4 h-4" />
-                  미리보기 열기
-                </span>
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setModalOpen(true)}
+                  className="rounded-2xl border border-slate-700 bg-slate-800 px-5 py-3 text-sm font-semibold text-slate-100 hover:bg-slate-700 transition"
+                >
+                  <span className="flex items-center gap-2">
+                    <Eye className="w-4 h-4" />
+                    미리보기 열기
+                  </span>
+                </button>
+                <button
+                  onClick={() => setSourceModalOpen(true)}
+                  className="rounded-2xl border border-slate-700 bg-slate-900 px-5 py-3 text-sm font-semibold text-cyan-400 hover:bg-slate-800 transition"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    HTML 소스 보기
+                  </span>
+                </button>
+              </div>
             )}
             {generateResult && (
               <button
@@ -997,7 +1009,13 @@ export default function Dashboard() {
     try {
       const result = await publishPostManual(postId);
       if (result.status === "success") {
-        setStatusMessages((prev) => [...prev, `성공적으로 발행되었습니다! URL: ${result.url}`]);
+        setStatusMessages((prev) => [...prev, `성공적으로 발행되었습니다!`]);
+        
+        // [SEO UX] 발행 성공 시 실제 블로그 URL을 새 창으로 즉시 열기
+        if (result.url) {
+          window.open(result.url, "_blank", "noopener,noreferrer");
+        }
+
         // 포스팅 현황 새로고침
         const res = await fetch(`${API_BASE_URL}/api/v1/posts/status`, {
           headers: buildHeaders(),
@@ -1125,7 +1143,7 @@ export default function Dashboard() {
           <div className="flex flex-wrap gap-3">
             <div className={`rounded-2xl px-5 py-3 text-sm font-semibold flex items-center gap-2 ${creditBadgeColor}`}>
               <CreditCard className="w-4 h-4" />
-              크레딧 {creditInfo.current_credit} + 차감 예정 {creditInfo.upcoming_deduction}
+              보유 크레딧: {creditInfo.current_credit?.toLocaleString() ?? "0"} C
             </div>
             <Link
               href="/credits"
@@ -1141,7 +1159,7 @@ export default function Dashboard() {
             <h2 className="text-xl font-semibold text-slate-100">블로그 관리</h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {blogs.map((blog) => (
+            {Array.isArray(blogs) && blogs.map((blog) => (
               <Fragment key={blog.id}>
                 <button
                   onClick={() => preparePanelForEdit(blog)}
@@ -1285,7 +1303,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {postsStatus.length === 0 ? (
+                {!Array.isArray(postsStatus) || postsStatus.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-20 text-center text-slate-500">
                       <div className="flex flex-col items-center gap-3">
@@ -1296,7 +1314,7 @@ export default function Dashboard() {
                   </tr>
                 ) : (
                   postsStatus.flatMap((blogGroup) =>
-                    blogGroup.posts.map((post: any) => (
+                    Array.isArray(blogGroup.posts) ? blogGroup.posts.map((post: any) => (
                       <tr key={`${post.id}-${blogGroup.blog_alias}`} className="border-t border-slate-800">
                         <td className="py-3 pr-6 font-semibold text-slate-100">{post.title}</td>
                         <td className="py-3 pr-6 text-slate-400">{new Date(post.created_at).toLocaleString()}</td>
@@ -1375,7 +1393,7 @@ export default function Dashboard() {
                  </div>
                         </td>
                       </tr>
-                    ))
+                    )) : []
                   )
                 )}
               </tbody>
@@ -1409,8 +1427,8 @@ export default function Dashboard() {
                 닫기
               </button>
             </div>
-            <div className="my-4 max-h-96 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-300">
-              <pre className="whitespace-pre-wrap">{previewHtml || "아직 생성된 HTML이 없습니다."}</pre>
+            <div className="my-4 max-h-96 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-300 prose prose-invert">
+              <div dangerouslySetInnerHTML={{ __html: previewHtml || "아직 생성된 HTML이 없습니다." }} />
             </div>
             <div className="flex justify-end gap-3">
               <button
@@ -1424,6 +1442,36 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+
+      {sourceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6">
+          <div className="w-full max-w-3xl rounded-3xl bg-slate-950 p-6 border border-slate-800 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <h3 className="text-xl font-semibold flex items-center gap-2">
+                <FileText className="w-5 h-5 text-cyan-400" />
+                HTML 원문 소스
+              </h3>
+              <button className="text-sm text-slate-400 hover:text-slate-200" onClick={() => setSourceModalOpen(false)}>
+                닫기
+              </button>
+            </div>
+            <div className="my-4 max-h-[60vh] overflow-y-auto rounded-2xl border border-slate-800 bg-slate-950 p-4 font-mono text-[10px] text-slate-400">
+              <pre className="whitespace-pre-wrap">{previewHtml || "아직 생성된 HTML이 없습니다."}</pre>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  handleCopyPreview();
+                  setSourceModalOpen(false);
+                }}
+                className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-6 py-2 rounded-xl transition"
+              >
+                소스 복사 후 닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <KeywordSearchModal
         isOpen={keywordSearchOpen}

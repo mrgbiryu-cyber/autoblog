@@ -167,60 +167,57 @@ async def generate_html(
     prompt: str | None,
     word_count_range: tuple[int, int],
     image_count: int,
-    keywords: list[str] | None = None,  # TO-BE: 키워드 리스트 추가
+    keywords: list[str] | None = None,
 ) -> dict:
     """
-    Generate SEO-optimized HTML document + metadata + image prompts.
-
-    TO-BE 요구사항:
-    - 제목: 55자 이내, 키워드 전진 배치
-    - 메타 설명: 120~160자
-    - 본문: 2줄 단위 문단 나누기 (모바일 최적화)
-    - CTA 버튼: 본문 하단 자동 삽입
-    - 썸네일: 마지막 이미지 프롬프트를 썸네일 전용으로 생성
-    - 이미지 프롬프트: 주제 키워드 포함 필수 (정합성 100%)
+    압도적 SEO 최적화 엔진:
+    - 제목: 30자 내외, 특수문자 배제, 검색 의도 중심
+    - 키워드 분산: 메인 5-10회, 서브 3-5회 (연속 사용 금지)
+    - 구조: 소제목 3-6개(질문형 포함), 리스트/표 활용, 2줄마다 줄바꿈
+    - 이미지: 텍스트 삽입 금지, 이미지 하단 설명 문장 자동 생성
     """
     min_words, max_words = word_count_range
-    prompt_text = prompt or f"{topic} 주제로 SEO 최적화 HTML을 작성하세요."
-    keyword_str = ", ".join(keywords or [])
+    prompt_text = prompt or f"{topic} 주제로 블로그 글을 작성하세요."
+    
+    main_keyword = keywords[0] if keywords and len(keywords) > 0 else topic
+    sub_keywords = keywords[1:] if keywords and len(keywords) > 1 else []
+    sub_kw_str = ", ".join(sub_keywords) if sub_keywords else "없음"
 
     full_prompt = (
-        "당신은 SEO 전문 콘텐츠 에디터입니다.\n"
-        "다음 입력을 바탕으로 블로그 포스팅을 생성하되, 결과는 JSON으로만 반환하세요.\n\n"
-        "[SEO 규격 - 필수 준수]\n"
-        f"- 제목: 55자 이내, 메인 키워드({keyword_str})를 가능한 문장 맨 앞에 배치\n"
-        "- 메타 설명: 120~160자 (정확히 이 범위 내)\n"
-        f"- 본문: 메인 키워드 1회, 서브 키워드 2회 이상 포함 (자연스러운 맥락 유지)\n"
-        "- 문단: 2줄 단위 문단 나누기 (모바일 최적화, <p> 태그 2~3문장 단위)\n"
-        "- CTA: 본문 하단에 행동 유도 버튼 포함 (<div class='cta-button'>)\n\n"
-        "[이미지 프롬프트 규격]\n"
-        f"- 총 {image_count}개 생성\n"
-        f"- 마지막 이미지는 썸네일 전용 (대표 이미지, 클릭 유도, 고해상도)\n"
-        "- 모든 이미지는 '다이어그램', '플로우차트', '마케팅 인포그래픽' 형태를 절대 피하고, 본문 내용이 실제로 일어나는 '실사 장면'이나 '구체적인 정물/현장'으로 묘사하세요.\n"
-        f"- 본문에서 다루는 구체적인 소재(예: 부동산이면 건물/계약/지도, 재테크면 금리/현금/그래프 등)를 중심으로 시각적 장면을 만드세요.\n\n"
-        "[중요 금지사항]\n"
-        "- 본문(body_html)에 기획 단계 문구(예: 'SEO를 위한 한마디', '메타 설명 아이디어') 절대 포함 금지\n"
-        "- 메타 설명/키워드/제목은 meta_description/meta_keywords/title 필드로만 제공\n\n"
-        "반드시 다음 형태만 허용됩니다(코드펜스 금지):\n"
+        "당신은 검색 엔진 상위 노출을 보장하는 15년 경력의 SEO 전문 콘텐츠 디렉터입니다.\n"
+        "다음 지침을 엄격히 준수하여 블로그 포스팅을 생성하고 JSON으로 반환하세요.\n\n"
+        
+        "[1. 핵심 SEO 전략 - 프롬프트 미노출 지침]\n"
+        f"- 메인 키워드: '{main_keyword}' (본문 전체에 5~10회 골고루 분산, 연속 사용 절대 금지)\n"
+        f"- 서브 키워드: '{sub_kw_str}' (각 3~5회 분산 배치)\n"
+        "- 문체: AI가 쓴 느낌을 완벽히 배제하고, 동의어와 유사어를 활용하여 자연스럽게 작성하세요.\n"
+        "- 일치성: 제목과 본문 내용이 100% 일치해야 하며 검색 의도를 정확히 관통해야 합니다.\n\n"
+        
+        "[2. 콘텐츠 구조 및 규격]\n"
+        "- 제목: 30자 내외(검색 의도 포함, 특수문자 금지, 메인 키워드 전진 배치)\n"
+        "- 메타 설명: 120~160자 (본문의 핵심을 요약하여 클릭을 유도)\n"
+        "- 본문 구조: 소제목(h2, h3)을 3~6개 포함하고, 그중 최소 1개는 질문형 문장으로 작성하세요.\n"
+        "- 가독성: 2줄마다 줄바꿈(<br> 또는 <p> 분리)을 적용하고 리스트(ul/ol), 표(table), 번호정리를 적극 활용하세요.\n"
+        "- CTA: 본문 하단에 자연스러운 행동 유도 문구를 포함하세요.\n\n"
+        
+        "[3. 이미지 및 미디어 지침]\n"
+        f"- 총 {image_count}개의 이미지 위치를 <!-- IMAGE_PLACEHOLDER_n --> 로 지정하세요.\n"
+        "- **중요**: 각 이미지 위치 바로 아래에 해당 이미지를 설명하는 자연스러운 문장(이미지 캡션)을 1줄 추가하세요.\n"
+        "- 이미지 프롬프트 생성 시 이미지 내에 어떠한 텍스트도 삽입하지 않도록 지시하세요.\n\n"
+        
+        "반드시 다음 JSON 형태로만 반환하세요:\n"
         "{\n"
-        "  \"title\": \"키워드 포함 55자 이내 제목\",\n"
-        "  \"meta_description\": \"120~160자 메타 설명\",\n"
+        "  \"title\": \"SEO 최적화 제목\",\n"
+        "  \"meta_description\": \"메타 설명\",\n"
         "  \"meta_keywords\": [\"키워드1\", \"키워드2\"],\n"
-        "  \"summary\": \"요약\",\n"
-        "  \"body_html\": \"2줄 단위 문단 HTML + CTA 버튼\",\n"
-        "  \"image_prompts\": [\"프롬프트1\", ..., \"썸네일 전용 프롬프트\"],\n"
-        "  \"cta_text\": \"CTA 버튼 문구\"\n"
+        "  \"body_html\": \"상세 HTML 본문\",\n"
+        "  \"image_prompts\": [\"텍스트가 배제된 실사 스타일 프롬프트1\", ..., \"썸네일 프롬프트\"],\n"
+        "  \"summary\": \"요약\"\n"
         "}\n\n"
         f"- 주제: {topic}\n"
         f"- 페르소나: {persona}\n"
-        f"- 글자수: {min_words}~{max_words}\n"
-        f"- 키워드: {keyword_str}\n"
-        f"- 이미지 개수: {image_count}\n"
-        f"- 작성 지시: {prompt_text}\n\n"
-        "body_html에는 제목(h1), 소제목(h2/h3), 본문(p), 목록(ul/ol)을 적절히 포함하고,\n"
-        f"이미지 위치는 <!-- IMAGE_PLACEHOLDER_1 --> 부터 <!-- IMAGE_PLACEHOLDER_{image_count} --> 까지 순서대로 포함하세요.\n"
-        f"image_prompts는 반드시 {image_count}개를 생성하되, 주제어({topic})에 얽매이지 말고 **작성한 본문의 각 문단이 설명하는 실제 장면**을 사진가가 촬영한 것처럼 구체적으로 묘사하세요.\n"
-        "마지막 이미지는 '글 전체의 핵심 주제를 상징하는 고해상도 대표 이미지'로 작성하세요.\n"
+        f"- 분량: {min_words}~{max_words}자\n"
+        f"- 추가 지시: {prompt_text}\n"
     )
 
     raw = await _call_prompt(full_prompt)
