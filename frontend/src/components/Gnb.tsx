@@ -9,10 +9,14 @@ import { CreditCard, History, X, ArrowUpRight, ArrowDownLeft, Menu } from "lucid
 
 const mainMenu = [
   { label: "기능소개", href: "/#features" },
+  { label: "사용방법", href: "/guides/usage" },
+  { label: "연동가이드", href: "/guides/api" },
   { label: "요금제", href: "/credits" },
 ];
 
 const subMenu = [
+  { label: "사용방법", href: "/guides/usage" },
+  { label: "연동가이드", href: "/guides/api" },
   { label: "요금제", href: "/credits" },
   { label: "대시보드", href: "/dashboard" },
   { label: "포스팅 현황", href: "/status" },

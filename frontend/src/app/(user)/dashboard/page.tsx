@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, CreditCard, Copy, Eye, Loader2, Shield, Search, CircleAlert, FileText } from "lucide-react";
+import { Bot, CreditCard, Copy, Eye, Loader2, Shield, Search, CircleAlert, FileText, PlayCircle, Rocket, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import KeywordSearchModal from "@/components/KeywordSearchModal";
@@ -218,7 +218,10 @@ export default function Dashboard() {
               />
             </label>
             <label className="space-y-2 text-sm text-slate-300">
-              API 키 / 액세스 토큰
+              <div className="flex items-center justify-between">
+                <span>API 키 / 액세스 토큰</span>
+                <Link href="/guides/api" className="text-[10px] text-cyan-400 hover:underline">발급 가이드 보기</Link>
+              </div>
               <input
                 type="password"
                 className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
@@ -1134,13 +1137,20 @@ export default function Dashboard() {
         <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.25em] text-slate-400">AI Marketing Automation Engine</p>
-        <h1 className="text-4xl font-bold flex items-center gap-3">
+            <h1 className="text-4xl font-bold flex items-center gap-3">
               <Bot className="w-10 h-10 text-cyan-400" />
-          {displayName ? `${displayName}님의 AI 대시보드` : "고객님의 AI 대시보드"}
+              {displayName ? `${displayName}님의 AI 대시보드` : "고객님의 AI 대시보드"}
             </h1>
             <p className="text-slate-400 mt-1">통합 블로그/플랫폼 일정, 크레딧, SEO 트래킹을 한 눈에.</p>
           </div>
           <div className="flex flex-wrap gap-3">
+            <Link
+              href="/guides/usage"
+              className="bg-slate-800 hover:bg-slate-700 text-slate-100 px-5 py-3 rounded-2xl text-sm font-semibold transition flex items-center gap-2 border border-slate-700"
+            >
+              <PlayCircle className="w-4 h-4 text-cyan-400" />
+              사용방법 튜토리얼
+            </Link>
             <div className={`rounded-2xl px-5 py-3 text-sm font-semibold flex items-center gap-2 ${creditBadgeColor}`}>
               <CreditCard className="w-4 h-4" />
               보유 크레딧: {creditInfo.current_credit?.toLocaleString() ?? "0"} C
@@ -1154,9 +1164,53 @@ export default function Dashboard() {
           </div>
         </header>
 
+        {/* Quick Tutorial Section */}
+        <section className="bg-gradient-to-br from-slate-900 to-slate-950 rounded-3xl p-6 border border-cyan-500/30 shadow-[0_0_20px_rgba(6,182,212,0.1)]">
+          <div className="flex items-start gap-6">
+            <div className="hidden md:flex flex-col gap-4">
+              <div className="w-12 h-12 bg-cyan-500/10 rounded-2xl flex items-center justify-center border border-cyan-500/20">
+                <Rocket className="w-6 h-6 text-cyan-400" />
+              </div>
+            </div>
+            <div className="flex-1 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span className="text-cyan-400">처음이신가요?</span> 핵심 시작 가이드
+                </h2>
+                <Link href="/guides/usage" className="text-xs text-cyan-400 hover:underline flex items-center gap-1">
+                  전체 튜토리얼 보기 <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="p-4 bg-slate-900/50 rounded-2xl border border-slate-800 space-y-2">
+                  <p className="text-xs font-bold text-cyan-500">STEP 1</p>
+                  <p className="text-sm font-semibold text-slate-100">블로그 추가하기</p>
+                  <p className="text-[11px] text-slate-400">하단의 + 버튼을 눌러 본인의 블로그 플랫폼을 연동하세요.</p>
+                </div>
+                <div className="p-4 bg-slate-900/50 rounded-2xl border border-slate-800 space-y-2">
+                  <p className="text-xs font-bold text-cyan-500">STEP 2</p>
+                  <p className="text-sm font-semibold text-slate-100">분석 및 설정 저장</p>
+                  <p className="text-[11px] text-slate-400">포스팅 하기 전, 분석하기를 통해 SEO 프롬프트를 확인하고 저장하세요.</p>
+                </div>
+                <div className="p-4 bg-slate-900/50 rounded-2xl border border-slate-800 space-y-2">
+                  <p className="text-xs font-bold text-cyan-500">STEP 3</p>
+                  <p className="text-sm font-semibold text-slate-100">자동화 스케줄링</p>
+                  <p className="text-[11px] text-slate-400">스케줄링 기능을 켜면 설정된 주기에 맞춰 AI가 글을 자동 발행합니다.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="bg-slate-900 rounded-3xl border border-slate-800 p-6 shadow-sm space-y-5">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-slate-100">블로그 관리</h2>
+            <Link 
+              href="/guides/api"
+              className="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-3 py-1.5 rounded-xl border border-cyan-500/20 hover:bg-cyan-500/20 transition"
+            >
+              연동 가이드 보기
+            </Link>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {Array.isArray(blogs) && blogs.map((blog) => (
